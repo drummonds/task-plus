@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-03-01
+
+ - Installing latest version locally
+
 ## [0.1.9] - 2026-03-01
 
  - Removing retracted releases and update installed version
