@@ -35,7 +35,7 @@ func Update(dir, version, format, comment string) error {
 	entry := FormatEntry(version, format, comment)
 	body := ""
 	if comment != "" {
-		body = "\n\n### Changed\n\n- " + comment
+		body = "\n\n - " + comment
 	}
 
 	// Try to insert after [Unreleased]
@@ -70,7 +70,7 @@ func createNew(path, version, format, comment string) error {
 	entry := FormatEntry(version, format, comment)
 	body := ""
 	if comment != "" {
-		body = "\n\n### Changed\n\n- " + comment
+		body = "\n\n - " + comment
 	}
 	content := "# Changelog\n\n## [Unreleased]\n\n" + entry + body + "\n"
 	return os.WriteFile(path, []byte(content), 0644)

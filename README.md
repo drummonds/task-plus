@@ -48,6 +48,7 @@ check: [task check]     # commands to run first
 changelog_format: keepachangelog  # or "simple"
 wasm: []                # optional WASM build commands
 goreleaser_config: .goreleaser.yaml
+install: true              # auto-run "go install" (skip prompt; omit to be asked)
 cleanup:
   keep_patches: 2       # per minor version
   keep_minors: 5

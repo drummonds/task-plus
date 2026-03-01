@@ -19,7 +19,16 @@ type Config struct {
 	Wasm             []string      `yaml:"wasm"`
 	GoreleaserConfig string        `yaml:"goreleaser_config"`
 	Cleanup          CleanupConfig `yaml:"cleanup"`
+	Install          *bool         `yaml:"install"`
 	Dir              string        `yaml:"-"`
+}
+
+// ShouldInstall returns the configured install preference, or false if not set.
+func (c *Config) ShouldInstall() bool {
+	if c.Install == nil {
+		return false
+	}
+	return *c.Install
 }
 
 const configFile = "task-release.yml"

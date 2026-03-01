@@ -16,10 +16,11 @@ import (
 )
 
 type Context struct {
-	Config  *config.Config
-	DryRun  bool
-	Version version.Version
-	Comment string
+	Config    *config.Config
+	DryRun    bool
+	Version   version.Version
+	Comment   string
+	CommitMsg string
 }
 
 // Run executes the full release workflow.
@@ -41,6 +42,7 @@ func Run(cfg *config.Config, dryRun bool) error {
 		{"Git push", stepGitPush},
 		{"Goreleaser", stepGoreleaser},
 		{"Cleanup", stepCleanup},
+		{"Local install", stepLocalInstall},
 	}
 
 	for _, s := range steps {
@@ -114,6 +116,7 @@ func stepGitCommit(ctx *Context) error {
 		return nil
 	}
 	msg := prompt.AskStringOrAuto("Commit message", "Release prep")
+	ctx.CommitMsg = msg
 	if ctx.DryRun {
 		fmt.Printf("  (dry-run) Would commit: %q\n", msg)
 		return nil
@@ -155,8 +158,8 @@ func stepDetectVersion(ctx *Context) error {
 
 	ctx.Version = v
 
-	// Ask for release comment
-	ctx.Comment = prompt.AskStringOrAuto("Release comment", "")
+	// Ask for release comment (default to commit message if available)
+	ctx.Comment = prompt.AskStringOrAuto("Release comment", ctx.CommitMsg)
 	return nil
 }
 
@@ -295,4 +298,25 @@ func stepCleanup(ctx *Context) error {
 		}
 	}
 	return nil
+}
+
+func stepLocalInstall(ctx *Context) error {
+	if ctx.Config.Install != nil {
+		if !*ctx.Config.Install {
+			fmt.Println("  Skipped (config: install=false).")
+			return nil
+		}
+	} else if !prompt.ConfirmOrAuto("Install locally (go install)?") {
+		fmt.Println("  Skipped.")
+		return nil
+	}
+	if ctx.DryRun {
+		fmt.Println("  (dry-run) Would run go install")
+		return nil
+	}
+	cmd := exec.Command("go", "install", "./cmd/...")
+	cmd.Dir = ctx.Config.Dir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }

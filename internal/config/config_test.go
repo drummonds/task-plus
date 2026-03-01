@@ -72,6 +72,36 @@ func TestDetectSimpleChangelog(t *testing.T) {
 	}
 }
 
+func TestInstallNil(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Install != nil {
+		t.Error("Install should be nil by default")
+	}
+	if cfg.ShouldInstall() {
+		t.Error("ShouldInstall should return false when nil")
+	}
+}
+
+func TestInstallFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "task-release.yml"), []byte("install: true\n"), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Install == nil {
+		t.Fatal("Install should not be nil")
+	}
+	if !cfg.ShouldInstall() {
+		t.Error("ShouldInstall should return true")
+	}
+}
+
 func TestLoadYAML(t *testing.T) {
 	dir := t.TempDir()
 	yaml := `type: binary
