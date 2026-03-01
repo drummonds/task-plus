@@ -70,13 +70,22 @@ func (c *Config) applyDefaults() {
 }
 
 func (c *Config) detectType() string {
-	candidates := []string{".goreleaser.yaml", ".goreleaser.yml"}
-	for _, name := range candidates {
-		if _, err := os.Stat(filepath.Join(c.Dir, name)); err == nil {
-			return "binary"
-		}
+	name := c.detectGoreleaserConfig()
+	if name != "" {
+		c.GoreleaserConfig = name
+		return "binary"
 	}
 	return "library"
+}
+
+// detectGoreleaserConfig returns the goreleaser config filename if found, or "".
+func (c *Config) detectGoreleaserConfig() string {
+	for _, name := range []string{".goreleaser.yaml", ".goreleaser.yml"} {
+		if _, err := os.Stat(filepath.Join(c.Dir, name)); err == nil {
+			return name
+		}
+	}
+	return ""
 }
 
 func (c *Config) detectCheck() []string {

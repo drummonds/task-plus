@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/drummonds/task-plus/internal/changelog"
@@ -138,10 +139,18 @@ func stepDetectVersion(ctx *Context) error {
 		return err
 	}
 
-	latest, found := version.LatestFromTags(tags)
+	retracted, err := version.ParseRetracted(ctx.Config.Dir)
+	if err != nil {
+		return fmt.Errorf("parsing retracted versions: %w", err)
+	}
+	if len(retracted) > 0 {
+		fmt.Printf("  Retracted versions: %v\n", retracted)
+	}
+
+	latest, found := version.LatestFromTags(tags, retracted)
 	var suggested version.Version
 	if found {
-		suggested = latest.BumpPatch()
+		suggested = latest.BumpPastRetracted(retracted)
 		fmt.Printf("  Latest tag: %s\n", latest)
 	} else {
 		suggested = version.Version{Major: 0, Minor: 1, Patch: 0}
@@ -257,6 +266,13 @@ func stepGitPush(ctx *Context) error {
 func stepGoreleaser(ctx *Context) error {
 	if !ctx.Config.IsBinary() {
 		fmt.Println("  Library project, skipping goreleaser.")
+		return nil
+	}
+	// Verify goreleaser config actually exists
+	configPath := filepath.Join(ctx.Config.Dir, ctx.Config.GoreleaserConfig)
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		fmt.Printf("  No %s found, skipping goreleaser.\n", ctx.Config.GoreleaserConfig)
+		fmt.Println("  Suggestion: create a .goreleaser.yaml to enable binary releases.")
 		return nil
 	}
 	if !prompt.ConfirmOrAuto("Run goreleaser?") {

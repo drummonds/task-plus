@@ -51,13 +51,17 @@ func (v Version) Less(other Version) bool {
 	return v.Patch < other.Patch
 }
 
-// LatestFromTags finds the latest semver tag from a list of tag strings.
-func LatestFromTags(tags []string) (Version, bool) {
+// LatestFromTags finds the latest non-retracted semver tag from a list of tag strings.
+func LatestFromTags(tags []string, retracted ...[]Version) (Version, bool) {
+	var exclude []Version
+	if len(retracted) > 0 {
+		exclude = retracted[0]
+	}
 	var versions []Version
 	for _, t := range tags {
 		t = strings.TrimSpace(t)
 		v, err := Parse(t)
-		if err == nil {
+		if err == nil && !IsRetracted(v, exclude) {
 			versions = append(versions, v)
 		}
 	}
@@ -68,4 +72,13 @@ func LatestFromTags(tags []string) (Version, bool) {
 		return versions[i].Less(versions[j])
 	})
 	return versions[len(versions)-1], true
+}
+
+// BumpPastRetracted bumps patch, skipping any retracted versions.
+func (v Version) BumpPastRetracted(retracted []Version) Version {
+	next := v.BumpPatch()
+	for IsRetracted(next, retracted) {
+		next = next.BumpPatch()
+	}
+	return next
 }
