@@ -329,7 +329,7 @@ func stepLocalInstall(ctx *Context) error {
 	return cmd.Run()
 }
 
-// checkDistClean fails fast if dist/ exists and would make git dirty for goreleaser.
+// checkDistClean removes dist/ if it exists and would make git dirty for goreleaser.
 func checkDistClean(dir string) error {
 	distDir := dir + "/dist"
 	if _, err := os.Stat(distDir); err == nil {
@@ -339,7 +339,10 @@ func checkDistClean(dir string) error {
 			return err
 		}
 		if !clean {
-			return fmt.Errorf("git working tree is dirty (dist/ exists). Run 'rm -rf dist/' or 'task clean' first")
+			fmt.Println("  Removing stale dist/ to ensure clean git state for goreleaser...")
+			if err := os.RemoveAll(distDir); err != nil {
+				return fmt.Errorf("failed to remove dist/: %w", err)
+			}
 		}
 	}
 	return nil
