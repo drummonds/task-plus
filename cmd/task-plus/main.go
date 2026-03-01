@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/pages"
@@ -13,9 +14,17 @@ import (
 )
 
 var (
-	// Set by goreleaser
+	// Set by goreleaser via ldflags; falls back to module version from go install.
 	appVersion = "dev"
 )
+
+func init() {
+	if appVersion == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+			appVersion = info.Main.Version
+		}
+	}
+}
 
 var commands = []struct {
 	name string

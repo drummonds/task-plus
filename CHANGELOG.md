@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-03-01
+
+ - Use debug.ReadBuildInfo for version when installed via go install
+
 ## [0.1.10] - 2026-03-01
 
  - Installing latest version locally
