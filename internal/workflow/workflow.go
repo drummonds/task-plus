@@ -53,10 +53,12 @@ func Run(cfg *config.Config, dryRun bool) error {
 
 	ctx := &Context{Config: cfg, DryRun: dryRun}
 
-	// 1. Check — fail fast
-	fmt.Println("\n=== Run checks ===")
-	if err := runChecks(ctx); err != nil {
-		return fmt.Errorf("Run checks: %w", err)
+	// 1. Precheck — fast checks before user interaction
+	if len(cfg.Precheck) > 0 {
+		fmt.Println("\n=== Precheck ===")
+		if err := runCmds(ctx, cfg.Precheck); err != nil {
+			return fmt.Errorf("Precheck: %w", err)
+		}
 	}
 
 	// 2. Gather — read-only state probing
@@ -71,7 +73,13 @@ func Run(cfg *config.Config, dryRun bool) error {
 		return fmt.Errorf("Questions: %w", err)
 	}
 
-	// 4. Execute — all mutations
+	// 4. Check — full checks (including tests) after questions
+	fmt.Println("\n=== Run checks ===")
+	if err := runCmds(ctx, cfg.Check); err != nil {
+		return fmt.Errorf("Run checks: %w", err)
+	}
+
+	// 5. Execute — all mutations
 	fmt.Println("\n=== Execute ===")
 	if err := Execute(ctx); err != nil {
 		return fmt.Errorf("Execute: %w", err)
@@ -81,9 +89,9 @@ func Run(cfg *config.Config, dryRun bool) error {
 	return nil
 }
 
-// runChecks runs configured check commands (e.g. task check).
-func runChecks(ctx *Context) error {
-	for _, cmd := range ctx.Config.Check {
+// runCmds runs a list of shell commands in the project directory.
+func runCmds(ctx *Context, cmds []string) error {
+	for _, cmd := range cmds {
 		fmt.Printf("  $ %s\n", cmd)
 		if ctx.DryRun {
 			continue

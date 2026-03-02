@@ -2,11 +2,33 @@ package version
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 )
+
+// ModulePath reads go.mod in dir and returns the module path.
+func ModulePath(dir string) (string, error) {
+	f, err := os.Open(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return "", fmt.Errorf("open go.mod: %w", err)
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("no module directive in go.mod")
+}
 
 // ParseRetracted reads go.mod in dir and returns all retracted versions.
 func ParseRetracted(dir string) ([]Version, error) {

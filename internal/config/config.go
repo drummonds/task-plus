@@ -15,6 +15,7 @@ type CleanupConfig struct {
 
 type Config struct {
 	Type             string        `yaml:"type"`
+	Precheck         []string      `yaml:"precheck"`
 	Check            []string      `yaml:"check"`
 	ChangelogFormat  string        `yaml:"changelog_format"`
 	Wasm             []string      `yaml:"wasm"`
@@ -53,6 +54,9 @@ func Load(dir string) (*Config, error) {
 func (c *Config) applyDefaults() {
 	if c.Type == "" {
 		c.Type = c.detectType()
+	}
+	if len(c.Precheck) == 0 {
+		c.Precheck = c.detectPrecheck()
 	}
 	if len(c.Check) == 0 {
 		c.Check = c.detectCheck()
@@ -93,11 +97,42 @@ func (c *Config) detectGoreleaserConfig() string {
 	return ""
 }
 
+func (c *Config) detectPrecheck() []string {
+	data, err := os.ReadFile(filepath.Join(c.Dir, "Taskfile.yml"))
+	if err != nil {
+		return nil
+	}
+	if hasTask(data, "precheck") {
+		return []string{"task precheck"}
+	}
+	return nil
+}
+
 func (c *Config) detectCheck() []string {
 	if _, err := os.Stat(filepath.Join(c.Dir, "Taskfile.yml")); err == nil {
 		return []string{"task check"}
 	}
 	return []string{"go fmt ./...", "go vet ./...", "go test ./..."}
+}
+
+// hasTask checks if YAML data contains a top-level task with the given name.
+func hasTask(data []byte, taskName string) bool {
+	prefix := "  " + taskName + ":"
+	lines := splitLines(string(data))
+	inTasks := false
+	for _, line := range lines {
+		if line == "tasks:" {
+			inTasks = true
+			continue
+		}
+		if inTasks && len(line) > 0 && line[0] != ' ' && line[0] != '\t' {
+			inTasks = false
+		}
+		if inTasks && (line == prefix || len(line) > len(prefix) && line[:len(prefix)] == prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) detectChangelogFormat() string {

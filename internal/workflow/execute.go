@@ -10,6 +10,7 @@ import (
 	"github.com/drummonds/task-plus/internal/cleanup"
 	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/release"
+	"github.com/drummonds/task-plus/internal/version"
 )
 
 // Execute performs all mutations based on the plan. No prompts.
@@ -157,14 +158,19 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 10. Local install
+	// 10. Local install (bypass proxy to avoid stale cache after tag push)
 	if p.DoInstall {
-		fmt.Println("  Installing locally...")
+		modPath, err := version.ModulePath(ctx.Config.Dir)
+		if err != nil {
+			return fmt.Errorf("reading module path: %w", err)
+		}
+		installArg := modPath + "/cmd/...@" + p.Version.String()
+		fmt.Printf("  Installing %s ...\n", installArg)
 		if ctx.DryRun {
-			fmt.Println("  (dry-run) Would run go install")
+			fmt.Printf("  (dry-run) Would run GOPROXY=direct go install %s\n", installArg)
 		} else {
-			cmd := exec.Command("go", "install", "./cmd/...")
-			cmd.Dir = ctx.Config.Dir
+			cmd := exec.Command("go", "install", installArg)
+			cmd.Env = append(os.Environ(), "GOPROXY=direct")
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
