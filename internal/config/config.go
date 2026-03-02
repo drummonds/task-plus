@@ -22,6 +22,7 @@ type Config struct {
 	GoreleaserConfig string        `yaml:"goreleaser_config"`
 	Cleanup          CleanupConfig `yaml:"cleanup"`
 	Install          *bool         `yaml:"install"`
+	InstallRetries   int           `yaml:"install_retries"`
 	PagesBuild       []string      `yaml:"pages_build"`
 	Dir              string        `yaml:"-"`
 }
@@ -72,6 +73,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Cleanup.KeepMinors == 0 {
 		c.Cleanup.KeepMinors = 5
+	}
+	if c.InstallRetries == 0 {
+		c.InstallRetries = 3
 	}
 	if len(c.PagesBuild) == 0 {
 		c.PagesBuild = c.detectPagesBuild()

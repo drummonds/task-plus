@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/drummonds/task-plus/internal/changelog"
 	"github.com/drummonds/task-plus/internal/cleanup"
@@ -169,12 +170,25 @@ func Execute(ctx *Context) error {
 		if ctx.DryRun {
 			fmt.Printf("  (dry-run) Would run GOPROXY=direct go install %s\n", installArg)
 		} else {
-			cmd := exec.Command("go", "install", installArg)
-			cmd.Env = append(os.Environ(), "GOPROXY=direct")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				return err
+			retries := ctx.Config.InstallRetries
+			var lastErr error
+			for attempt := 1; attempt <= retries; attempt++ {
+				cmd := exec.Command("go", "install", installArg)
+				cmd.Env = append(os.Environ(), "GOPROXY=direct")
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				lastErr = cmd.Run()
+				if lastErr == nil {
+					break
+				}
+				if attempt < retries {
+					delay := time.Duration(attempt*5) * time.Second
+					fmt.Printf("  Install attempt %d/%d failed, retrying in %s...\n", attempt, retries, delay)
+					time.Sleep(delay)
+				}
+			}
+			if lastErr != nil {
+				return fmt.Errorf("go install failed after %d attempts: %w", retries, lastErr)
 			}
 		}
 	}
