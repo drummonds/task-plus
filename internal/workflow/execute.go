@@ -149,9 +149,9 @@ func Execute(ctx *Context) error {
 		if ctx.DryRun {
 			fmt.Println("  (dry-run) Would delete releases")
 		} else {
-			for _, tag := range p.ReleasesToDelete {
-				fmt.Printf("  Deleting %s...\n", tag)
-				if err := cleanup.DeleteRelease(ctx.Config.Dir, tag); err != nil {
+			for _, d := range p.ReleasesToDelete {
+				fmt.Printf("  Deleting %s (%s)...\n", d.Tag, d.Reason)
+				if err := cleanup.DeleteRelease(ctx.Config.Dir, d.Tag); err != nil {
 					fmt.Printf("  Warning: %v\n", err)
 				}
 			}
