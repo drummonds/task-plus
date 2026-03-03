@@ -51,7 +51,34 @@ func Execute(ctx *Context) error {
 		return fmt.Errorf("tag %s already exists", p.Version)
 	}
 
-	// 4. Update changelog + auto-commit
+	// 4. Run release:version-update Taskfile task if present
+	if p.HasVersionUpdate {
+		fmt.Printf("  Running release:version-update with VERSION=%s\n", p.Version)
+		if ctx.DryRun {
+			fmt.Printf("  (dry-run) Would run: task release:version-update\n")
+		} else {
+			cmd := exec.Command("task", "release:version-update")
+			cmd.Dir = ctx.Config.Dir
+			cmd.Env = append(os.Environ(), "VERSION="+p.Version.String())
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("release:version-update failed: %w", err)
+			}
+			// Commit version-update changes if any
+			clean, _ := git.IsClean(ctx.Config.Dir)
+			if !clean {
+				if err := git.AddAll(ctx.Config.Dir); err != nil {
+					return err
+				}
+				if err := git.Commit(ctx.Config.Dir, fmt.Sprintf("Update version to %s", p.Version)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// 5. Update changelog + auto-commit
 	fmt.Printf("  Updating CHANGELOG.md (%s format)\n", ctx.Config.ChangelogFormat)
 	if ctx.DryRun {
 		fmt.Println("  (dry-run) Would update changelog")
@@ -67,7 +94,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 5. Git tag
+	// 6. Git tag
 	tag := p.Version.String()
 	msg := tag
 	if p.Comment != "" {
@@ -82,7 +109,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 6. WASM build
+	// 7. WASM build
 	if ctx.Config.HasWasm() {
 		fmt.Println("  Building WASM...")
 		for _, cmd := range ctx.Config.Wasm {
@@ -120,7 +147,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 7. Git push
+	// 8. Git push
 	if p.DoPush {
 		fmt.Println("  Pushing...")
 		if ctx.DryRun {
@@ -132,7 +159,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 8. Goreleaser
+	// 9. Goreleaser
 	if p.DoGoreleaser {
 		fmt.Println("  Running goreleaser...")
 		if ctx.DryRun {
@@ -144,7 +171,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 9. Cleanup
+	// 10. Cleanup
 	if p.DoCleanup {
 		fmt.Println("  Cleaning up old releases...")
 		if ctx.DryRun {
@@ -159,7 +186,7 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 10. Local install (bypass proxy to avoid stale cache after tag push)
+	// 11. Local install (bypass proxy to avoid stale cache after tag push)
 	if p.DoInstall {
 		modPath, err := version.ModulePath(ctx.Config.Dir)
 		if err != nil {

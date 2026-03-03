@@ -82,6 +82,9 @@ func PrintSummary(ctx *Context) {
 		fmt.Printf("  Git add + commit: %q\n", p.CommitMsg)
 	}
 	fmt.Printf("  Version: %s\n", p.Version)
+	if p.HasVersionUpdate {
+		fmt.Println("  Version update: yes (Taskfile release:version-update)")
+	}
 	fmt.Printf("  Comment: %s\n", p.Comment)
 	if p.DoPush {
 		fmt.Println("  Push: yes")

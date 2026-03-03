@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/drummonds/task-plus/internal/cleanup"
+	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/forge"
 	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/version"
@@ -43,6 +44,9 @@ func Gather(ctx *Context) error {
 	} else {
 		p.SuggestedVersion = version.Version{Major: 0, Minor: 1, Patch: 0}
 	}
+
+	// Taskfile release:version-update task?
+	p.HasVersionUpdate = config.HasTaskfileTask(ctx.Config.Dir, "release:version-update")
 
 	// Goreleaser config exists?
 	configPath := filepath.Join(ctx.Config.Dir, ctx.Config.GoreleaserConfig)

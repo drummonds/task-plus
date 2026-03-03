@@ -7,12 +7,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 
 	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/md2html"
 	"github.com/drummonds/task-plus/internal/pages"
 	"github.com/drummonds/task-plus/internal/prompt"
 	"github.com/drummonds/task-plus/internal/self"
+	"github.com/drummonds/task-plus/internal/version"
 	"github.com/drummonds/task-plus/internal/workflow"
 )
 
@@ -34,6 +36,7 @@ var commands = []struct {
 	desc string
 }{
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
+	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
 	{"pages", "Serve docs/ directory over HTTP"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
 	{"self", "Manage task-plus itself (update, etc.)"},
@@ -45,6 +48,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	checkForUpdate()
+
 	switch os.Args[1] {
 	case "-a":
 		listCommands()
@@ -54,6 +59,8 @@ func main() {
 		runRelease(os.Args[2:])
 	case "pages":
 		runPages(os.Args[2:])
+	case "release:version-update":
+		runReleaseVersionUpdate(os.Args[2:])
 	case "md2html":
 		runMd2html(os.Args[2:])
 	case "self":
@@ -65,11 +72,33 @@ func main() {
 	}
 }
 
+// checkForUpdate silently checks the Go module proxy and prints a hint if a newer version exists.
+func checkForUpdate() {
+	if appVersion == "dev" || !strings.HasPrefix(appVersion, "v") {
+		return
+	}
+	current, err := version.Parse(appVersion)
+	if err != nil {
+		return
+	}
+	latest, err := self.FetchLatestVersion()
+	if err != nil {
+		return
+	}
+	lv, err := version.Parse(latest)
+	if err != nil {
+		return
+	}
+	if current.Less(lv) {
+		fmt.Fprintf(os.Stderr, "Update available: %s -> %s (run: task-plus self update)\n", appVersion, latest)
+	}
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage: task-plus <command> [flags]\n\n")
 	fmt.Fprintf(os.Stderr, "Commands:\n")
 	for _, c := range commands {
-		fmt.Fprintf(os.Stderr, "  %-10s %s\n", c.name, c.desc)
+		fmt.Fprintf(os.Stderr, "  %-24s %s\n", c.name, c.desc)
 	}
 	fmt.Fprintf(os.Stderr, "\nFlags:\n")
 	fmt.Fprintf(os.Stderr, "  -a         List available commands\n")
@@ -79,7 +108,7 @@ func usage() {
 func listCommands() {
 	fmt.Println("task-plus commands:")
 	for _, c := range commands {
-		fmt.Printf("  %-10s %s\n", c.name, c.desc)
+		fmt.Printf("  %-24s %s\n", c.name, c.desc)
 	}
 }
 
@@ -230,6 +259,36 @@ func runMd2html(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func runReleaseVersionUpdate(args []string) {
+	fs := flag.NewFlagSet("release:version-update", flag.ExitOnError)
+	init := fs.Bool("init", false, "generate a sample release:version-update task for Taskfile.yml")
+	fs.Parse(args)
+
+	if !*init {
+		fmt.Fprintf(os.Stderr, "Usage: task-plus release:version-update --init\n")
+		fmt.Fprintf(os.Stderr, "\nGenerates a sample Taskfile task that updates version strings.\n")
+		fmt.Fprintf(os.Stderr, "During 'task-plus release', if a release:version-update task exists\n")
+		fmt.Fprintf(os.Stderr, "in your Taskfile, it will be called with VERSION=vX.Y.Z.\n")
+		os.Exit(1)
+	}
+
+	fmt.Print(`# Add this to your Taskfile.yml under tasks:
+# During 'task-plus release', this task is called with VERSION env var
+# after the version is confirmed and before the changelog is updated.
+
+  release:version-update:
+    desc: Update version strings in project files
+    cmds:
+      - sed -i 's/const Version = ".*"/const Version = "{{.VERSION}}"/' version.go
+    env:
+      VERSION: '{{.CLI_ARGS}}'
+`)
+	fmt.Println()
+	fmt.Println("# Adapt the sed pattern and file path to your project.")
+	fmt.Println("# The VERSION environment variable is set automatically by task-plus release.")
+	fmt.Println("# Example: VERSION=v0.2.0 task release:version-update")
 }
 
 func runSelf(args []string) {

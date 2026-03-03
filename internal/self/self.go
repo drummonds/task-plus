@@ -2,12 +2,14 @@
 package self
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 const (
@@ -32,7 +34,7 @@ func Run(args []string, version string) error {
 func runUpdate(currentVersion string) error {
 	fmt.Printf("Current version: %s\n", currentVersion)
 
-	latest, err := fetchLatestVersion()
+	latest, err := FetchLatestVersion()
 	if err != nil {
 		fmt.Printf("Could not check latest version: %v\n", err)
 		fmt.Println("Proceeding with update anyway...")
@@ -56,10 +58,18 @@ func runUpdate(currentVersion string) error {
 	return nil
 }
 
-// fetchLatestVersion queries the Go module proxy for the latest version.
-func fetchLatestVersion() (string, error) {
+// FetchLatestVersion queries the Go module proxy for the latest version
+// with a short timeout so it doesn't block startup.
+func FetchLatestVersion() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	url := "https://proxy.golang.org/" + moduleName + "/@latest"
-	resp, err := http.Get(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +82,6 @@ func fetchLatestVersion() (string, error) {
 		return "", err
 	}
 	// Response is JSON: {"Version":"v0.1.21","Time":"..."}
-	// Simple extraction to avoid adding encoding/json for one field.
 	s := string(body)
 	if i := strings.Index(s, `"Version":"`); i >= 0 {
 		s = s[i+len(`"Version":"`):]

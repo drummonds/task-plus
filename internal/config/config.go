@@ -121,6 +121,7 @@ func (c *Config) detectCheck() []string {
 }
 
 // hasTask checks if YAML data contains a top-level task with the given name.
+// Matches "  release:" but not "  release:post:" (colon-namespaced tasks are distinct).
 func hasTask(data []byte, taskName string) bool {
 	prefix := "  " + taskName + ":"
 	lines := splitLines(string(data))
@@ -133,11 +134,22 @@ func hasTask(data []byte, taskName string) bool {
 		if inTasks && len(line) > 0 && line[0] != ' ' && line[0] != '\t' {
 			inTasks = false
 		}
-		if inTasks && (line == prefix || len(line) > len(prefix) && line[:len(prefix)] == prefix) {
-			return true
+		if inTasks && len(line) >= len(prefix) && line[:len(prefix)] == prefix {
+			if len(line) == len(prefix) || line[len(prefix)] == ' ' {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+// HasTaskfileTask checks if a Taskfile in dir contains a top-level task with the given name.
+func HasTaskfileTask(dir string, taskName string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
+	if err != nil {
+		return false
+	}
+	return hasTask(data, taskName)
 }
 
 func (c *Config) detectChangelogFormat() string {

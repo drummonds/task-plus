@@ -24,6 +24,7 @@ type Plan struct {
 	Retracted        []version.Version
 	ReleasesToDelete []cleanup.Deletion
 	HasGoreleaserCfg bool
+	HasVersionUpdate bool
 	Forge            forge.Forge
 	HasForgeCLI      bool
 
