@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Release Workflow - task-plus</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <style>
+        pre {
+            background-color: #2b2b2b;
+            color: #f8f8f2;
+            padding: 1.25em 1.5em;
+            overflow-x: auto;
+        }
+        pre code {
+            color: inherit;
+            background: none;
+            padding: 0;
+            font-size: 0.875em;
+        }
+        code {
+            background-color: #f5f5f5;
+            color: #e83e8c;
+            padding: 0.125em 0.375em;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <nav class="breadcrumb" aria-label="breadcrumbs">
+                <ul>
+                    <li><a href="../index.html">task-plus</a></li>
+                    <li class="is-active"><a href="#" aria-current="page">Internal Docs</a></li>
+                    <li class="is-active"><a href="#" aria-current="page">Release Workflow</a></li>
+                </ul>
+            </nav>
+
+            <div class="content">
+                <h1 id="release-workflow">Release Workflow</h1>
+<p>task-plus automates the release process for Go projects. The workflow runs through five phases: Precheck, Gather, Ask, Check, and Execute.</p>
+<h2 id="flowchart">Flowchart</h2>
+<pre><code class="language-mermaid">flowchart TD
+    A[Start] --&gt; B[Precheck]
+    B --&gt; C[Gather State]
+    C --&gt; D{Git Dirty?}
+    D --&gt;|Yes| E[Add + Commit]
+    D --&gt;|No| F[Ask Version]
+    E --&gt; F
+    F --&gt; G[Run Checks]
+    G --&gt; H[Update CHANGELOG]
+    H --&gt; I[Git Tag]
+    I --&gt; J{WASM?}
+    J --&gt;|Yes| K[Build WASM + Re-tag]
+    J --&gt;|No| L[Git Push]
+    K --&gt; L
+    L --&gt; M{Binary?}
+    M --&gt;|Yes| N[Goreleaser]
+    M --&gt;|No| O[Cleanup]
+    N --&gt; O
+    O --&gt; P[Install]
+    P --&gt; Q[Done]
+</code></pre>
+<h2 id="phases">Phases</h2>
+<h3 id="1-precheck">1. Precheck</h3>
+<p>Runs any configured precheck commands (e.g. <code>task precheck</code>). Fails fast before user interaction.</p>
+<h3 id="2-gather">2. Gather</h3>
+<p>Read-only state probing:</p>
+<ul>
+<li>Git status (dirty/clean)</li>
+<li>Existing tags and retracted versions</li>
+<li>Suggested next version (auto-incremented, skipping retracted)</li>
+<li>Fork detection (go.mod vs git remote)</li>
+<li>Goreleaser config detection</li>
+<li>Forge detection (GitHub/Gitea) and release cleanup candidates</li>
+</ul>
+<h3 id="3-ask">3. Ask</h3>
+<p>Interactive prompts:</p>
+<ul>
+<li>Git add/commit if dirty</li>
+<li>Version confirmation (suggested or custom)</li>
+<li>Release comment</li>
+<li>Push, goreleaser, cleanup, install confirmations</li>
+</ul>
+<h3 id="4-check">4. Check</h3>
+<p>Runs configured check commands (default: <code>task check</code> which runs fmt, vet, test).</p>
+<h3 id="5-execute">5. Execute</h3>
+<p>All mutations in order:</p>
+<ol>
+<li>Git add + commit (if dirty)</li>
+<li>Tag existence check</li>
+<li>Version update task (if configured)</li>
+<li>CHANGELOG update + auto-commit</li>
+<li>Git tag</li>
+<li>WASM build + re-tag (if configured)</li>
+<li>Git push</li>
+<li>Goreleaser (binary projects)</li>
+<li>Release cleanup (old releases)</li>
+<li>Local install (<code>go install</code>)</li>
+</ol>
+
+            </div>
+        </div>
+    </section>
+</body>
+</html>

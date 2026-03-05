@@ -102,7 +102,29 @@ func TestInstallFromYAML(t *testing.T) {
 	}
 }
 
-func TestPagesBuildDetectBuildDocs(t *testing.T) {
+func TestPagesBuildDetectDocsBuild(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := `version: "3"
+tasks:
+  docs:build:
+    cmds:
+      - echo build docs
+  build:
+    cmds:
+      - go build ./...
+`
+	os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.PagesBuild) != 1 || cfg.PagesBuild[0] != "task docs:build" {
+		t.Errorf("PagesBuild = %v, want [task docs:build]", cfg.PagesBuild)
+	}
+}
+
+func TestPagesBuildDetectBuildDocsLegacy(t *testing.T) {
 	dir := t.TempDir()
 	taskfile := `version: "3"
 tasks:

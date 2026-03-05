@@ -1,2 +1,3 @@
 dist/
 /task-plus
+.claude/settings.json

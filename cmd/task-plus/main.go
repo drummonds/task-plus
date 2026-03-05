@@ -16,6 +16,7 @@ import (
 	"github.com/drummonds/task-plus/internal/self"
 	"github.com/drummonds/task-plus/internal/version"
 	"github.com/drummonds/task-plus/internal/workflow"
+	"github.com/drummonds/task-plus/internal/worktree"
 )
 
 var (
@@ -39,6 +40,7 @@ var commands = []struct {
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
 	{"pages", "Serve docs/ directory over HTTP"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
+	{"wt", "Manage git worktrees for Claude tasks (start, review, merge, clean, list)"},
 	{"self", "Manage task-plus itself (update, etc.)"},
 }
 
@@ -63,6 +65,8 @@ func main() {
 		runReleaseVersionUpdate(os.Args[2:])
 	case "md2html":
 		runMd2html(os.Args[2:])
+	case "wt":
+		runWt(os.Args[2:])
 	case "self":
 		runSelf(os.Args[2:])
 	default:
@@ -289,6 +293,13 @@ func runReleaseVersionUpdate(args []string) {
 	fmt.Println("# Adapt the sed pattern and file path to your project.")
 	fmt.Println("# The VERSION environment variable is set automatically by task-plus release.")
 	fmt.Println("# Example: VERSION=v0.2.0 task release:version-update")
+}
+
+func runWt(args []string) {
+	if err := worktree.Run(args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runSelf(args []string) {

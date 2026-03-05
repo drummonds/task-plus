@@ -27,10 +27,10 @@ tasks:
     cmds:
       - go mod tidy
 
-  build:docs:
+  docs:build:
     cmds:
-      - mmdg -i docs/release-workflow.md -o docs/ -e svg
-      - mmdg -i docs/fork-release.md -o docs/ -e svg
+      - mmdg -i docs/release-workflow.md -o docs/release-workflow.svg -e svg
+      - mmdg -i docs/fork-release.md -o docs/fork-release.svg -e svg
       - task-plus md2html --src docs --dst docs
 
   clean:

@@ -193,7 +193,8 @@ func splitLines(s string) []string {
 }
 
 // detectPagesBuild auto-detects a build command from Taskfile.yml.
-// Looks for build:docs task. Warns if build-pages is found (should be renamed).
+// Preferred task name is docs:build (subject:action, consistent with deps:tidy).
+// Also accepts build:docs with a rename suggestion.
 func (c *Config) detectPagesBuild() []string {
 	data, err := os.ReadFile(filepath.Join(c.Dir, "Taskfile.yml"))
 	if err != nil {
@@ -201,6 +202,7 @@ func (c *Config) detectPagesBuild() []string {
 	}
 	lines := splitLines(string(data))
 	inTasks := false
+	hasDocsBuild := false
 	hasBuildDocs := false
 	hasBuildPages := false
 	for _, line := range lines {
@@ -216,6 +218,9 @@ func (c *Config) detectPagesBuild() []string {
 			for len(trimmed) > 0 && (trimmed[0] == ' ' || trimmed[0] == '\t') {
 				trimmed = trimmed[1:]
 			}
+			if trimmed == "docs:build:" || (len(trimmed) > 11 && trimmed[:11] == "docs:build:") {
+				hasDocsBuild = true
+			}
 			if trimmed == "build:docs:" || (len(trimmed) > 11 && trimmed[:11] == "build:docs:") {
 				hasBuildDocs = true
 			}
@@ -224,11 +229,15 @@ func (c *Config) detectPagesBuild() []string {
 			}
 		}
 	}
+	if hasDocsBuild {
+		return []string{"task docs:build"}
+	}
 	if hasBuildDocs {
+		fmt.Fprintf(os.Stderr, "Warning: Taskfile has 'build:docs' task — consider renaming to 'docs:build' (subject:action convention, like deps:tidy).\n")
 		return []string{"task build:docs"}
 	}
 	if hasBuildPages {
-		fmt.Fprintf(os.Stderr, "Warning: Taskfile has 'build-pages' task — consider renaming to 'build:docs' for auto-detection.\n")
+		fmt.Fprintf(os.Stderr, "Warning: Taskfile has 'build-pages' task — consider renaming to 'docs:build' for auto-detection.\n")
 	}
 	return nil
 }
