@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.30] - 2026-03-05
+
+ - Adding README to docs folder
+
 ## [0.1.29] - 2026-03-05
 
  - Refreshing documentation
