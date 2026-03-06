@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.34] - 2026-03-06
+
+ - Adding statichost.eu pages deployment
+
 ## [0.1.33] - 2026-03-06
 
  - Release static host version
