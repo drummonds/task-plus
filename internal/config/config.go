@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/drummonds/task-plus/internal/deploy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -25,8 +26,9 @@ type Config struct {
 	Fork             *bool         `yaml:"fork"`
 	Install          *bool         `yaml:"install"`
 	InstallRetries   int           `yaml:"install_retries"`
-	PagesBuild       []string      `yaml:"pages_build"`
-	Dir              string        `yaml:"-"`
+	PagesBuild       []string        `yaml:"pages_build"`
+	PagesDeploy      []deploy.Target `yaml:"pages_deploy"`
+	Dir              string          `yaml:"-"`
 }
 
 // ShouldInstall returns the configured install preference, or false if not set.
@@ -38,6 +40,30 @@ func (c *Config) ShouldInstall() bool {
 }
 
 const configFile = "task-plus.yml"
+
+// Init creates a default task-plus.yml in dir. Returns an error if the file already exists.
+func Init(dir string) error {
+	path := filepath.Join(dir, configFile)
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("%s already exists", configFile)
+	}
+
+	content := `# task-plus configuration — see https://github.com/drummonds/task-plus
+# type: library           # or "binary" (auto-detected from .goreleaser.yaml)
+# check: [task check]     # commands to run during release checks
+# changelog_format: keepachangelog  # or "simple"
+# install: true           # auto-run "go install" after release
+
+pages_deploy:
+  - type: statichost
+    site: CHANGEME         # your site name on statichost.eu
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return err
+	}
+	fmt.Printf("Created %s\n", configFile)
+	return nil
+}
 
 // Load reads task-release.yml from dir, then applies auto-detection for unset fields.
 func Load(dir string) (*Config, error) {
@@ -255,4 +281,9 @@ func (c *Config) IsBinary() bool {
 // HasWasm returns true if WASM build steps are configured.
 func (c *Config) HasWasm() bool {
 	return len(c.Wasm) > 0
+}
+
+// HasPagesDeploy returns true if any deploy targets are configured.
+func (c *Config) HasPagesDeploy() bool {
+	return len(c.PagesDeploy) > 0
 }

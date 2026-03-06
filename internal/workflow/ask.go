@@ -71,6 +71,19 @@ func Ask(ctx *Context) error {
 		}
 	}
 
+	// Deploy
+	if ctx.Config.HasPagesDeploy() {
+		fmt.Printf("  Deploy targets:")
+		for _, t := range ctx.Config.PagesDeploy {
+			fmt.Printf(" %s", t.Type)
+			if t.Site != "" {
+				fmt.Printf("(%s)", t.Site)
+			}
+		}
+		fmt.Println()
+		p.DoDeploy = prompt.ConfirmOrAuto("Deploy documentation?")
+	}
+
 	// Summary
 	PrintSummary(ctx)
 
@@ -102,6 +115,13 @@ func PrintSummary(ctx *Context) {
 		fmt.Println("  Install: yes (Taskfile release:install)")
 	} else if p.DoInstall {
 		fmt.Println("  Install: yes")
+	}
+	if p.DoDeploy {
+		fmt.Printf("  Deploy docs:")
+		for _, t := range ctx.Config.PagesDeploy {
+			fmt.Printf(" %s", t.Type)
+		}
+		fmt.Println()
 	}
 	fmt.Println("---")
 }

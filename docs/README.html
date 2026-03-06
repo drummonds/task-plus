@@ -48,6 +48,10 @@
 <h2 id="install">Install</h2>
 <pre><code class="language-bash">go install github.com/drummonds/task-plus/cmd/task-plus@latest
 </code></pre>
+<p>A shorter alias <code>tp</code> is also available:</p>
+<pre><code class="language-bash">go install github.com/drummonds/task-plus/cmd/tp@latest
+</code></pre>
+<p>Both binaries are identical — <code>tp</code> is just shorter to type.</p>
 <h2 id="commands">Commands</h2>
 <h3 id="task-plus-release"><code>task-plus release</code></h3>
 <p>Interactive release workflow. Replaces duplicated <code>task release</code> Taskfile patterns.</p>
@@ -75,6 +79,7 @@ task-plus release --yes --dir /path/to/project
 <li>Goreleaser (if binary project)</li>
 <li>Cleanup old GitHub releases</li>
 <li>Local install</li>
+<li>Deploy documentation (if configured)</li>
 </ol>
 <h3 id="task-plus-pages"><code>task-plus pages</code></h3>
 <p>Serve the <code>docs/</code> directory over HTTP for local preview.</p>
@@ -102,8 +107,45 @@ install: true           # auto-run &quot;go install&quot; (skip prompt; omit to 
 cleanup:
   keep_patches: 2       # per minor version
   keep_minors: 5
+pages_build: [task docs:build]  # commands to build docs before serving/deploying
+pages_deploy:                   # deploy docs during release (multiple targets supported)
+  - type: github                # push docs/ to gh-pages branch
+  - type: statichost
+    site: myproject             # site name on statichost.eu
 </code></pre>
 <p>All fields optional — sensible defaults are auto-detected.</p>
+<h3 id="documentation-deployment">Documentation Deployment</h3>
+<p>Configure <code>pages_deploy</code> in <code>task-plus.yml</code> to deploy documentation as part of the release workflow. Multiple targets can be active simultaneously.</p>
+<p><strong>Supported providers:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+<th>Requirements</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>github</code></td>
+<td>Pushes <code>docs/</code> to <code>gh-pages</code> branch via <code>git subtree push</code></td>
+<td>Git remote configured</td>
+</tr>
+<tr>
+<td><code>statichost</code></td>
+<td>Uploads <code>docs/</code> to <a href="https://www.statichost.eu/">statichost.eu</a></td>
+<td><code>site</code> field required; uses <code>shcli</code> (auto-downloaded if missing)</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>pages_build</code> commands are configured, they run before deployment.</p>
+<p>Example <code>task-plus.yml</code> for deploying to both GitHub Pages and statichost.eu:</p>
+<pre><code class="language-yaml">pages_build: [task docs:build]
+pages_deploy:
+  - type: github
+  - type: statichost
+    site: my-docs
+</code></pre>
 
             </div>
         </div>

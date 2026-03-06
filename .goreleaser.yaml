@@ -6,8 +6,20 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/task-plus
+  - id: task-plus
+    main: ./cmd/task-plus
     binary: task-plus
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+  - id: tp
+    main: ./cmd/tp
+    binary: tp
     env:
       - CGO_ENABLED=0
     goos:
@@ -20,6 +32,9 @@ builds:
 archives:
   - formats:
       - tar.gz
+    builds:
+      - task-plus
+      - tp
 
 changelog:
   sort: asc

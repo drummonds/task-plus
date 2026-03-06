@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/drummonds/task-plus/internal/changelog"
+	"github.com/drummonds/task-plus/internal/deploy"
 	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/release"
 	"github.com/drummonds/task-plus/internal/version"
@@ -239,6 +240,40 @@ func Execute(ctx *Context) error {
 				if lastErr != nil {
 					return fmt.Errorf("go install failed after %d attempts: %w", retries, lastErr)
 				}
+			}
+		}
+	}
+
+	// 12. Pages deploy
+	if p.DoDeploy {
+		// Build docs first if configured
+		if ctx.Config.HasPagesBuild() {
+			fmt.Println("  Building documentation...")
+			for _, cmd := range ctx.Config.PagesBuild {
+				fmt.Printf("  $ %s\n", cmd)
+				if ctx.DryRun {
+					continue
+				}
+				parts := strings.Fields(cmd)
+				c := exec.Command(parts[0], parts[1:]...)
+				c.Dir = ctx.Config.Dir
+				c.Stdout = os.Stdout
+				c.Stderr = os.Stderr
+				if err := c.Run(); err != nil {
+					return fmt.Errorf("docs build failed: %w", err)
+				}
+			}
+		}
+
+		docsDir := filepath.Join(ctx.Config.Dir, "docs")
+		for _, target := range ctx.Config.PagesDeploy {
+			d, err := deploy.New(target)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("  Deploying to %s...\n", d.Name())
+			if err := d.Deploy(ctx.Config.Dir, docsDir, ctx.DryRun); err != nil {
+				return err
 			}
 		}
 	}

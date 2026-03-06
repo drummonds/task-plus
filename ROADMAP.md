@@ -8,7 +8,12 @@
 - [x] GitHub release cleanup
 - [x] --dry-run and --yes flags
 
+## Recent
+- [x] `tp` alias — shorter binary name, same functionality
+- [x] Documentation deployment during release (pluggable: GitHub Pages, statichost.eu)
+
 ## Future
 - Pre/post release hooks
 - Monorepo support
 - Custom step ordering
+- Additional deploy providers

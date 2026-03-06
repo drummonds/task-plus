@@ -26,8 +26,11 @@ flowchart TD
     O --> P{Fork?}
     P -->|Yes| Q[Skip Install]
     P -->|No| R[Install]
-    Q --> S[Done]
-    R --> S
+    Q --> T{Deploy Docs?}
+    R --> T
+    T -->|Yes| U[Build + Deploy Docs]
+    T -->|No| S[Done]
+    U --> S
 ```
 
 ## Phases
@@ -49,7 +52,7 @@ Interactive prompts:
 - Git add/commit if dirty
 - Version confirmation (suggested or custom)
 - Release comment
-- Push, goreleaser, cleanup, install confirmations
+- Push, goreleaser, cleanup, install, deploy confirmations
 
 ### 4. Check
 Runs configured check commands (default: `task check` which runs fmt, vet, test).
@@ -66,3 +69,4 @@ All mutations in order:
 8. Goreleaser (binary projects)
 9. Release cleanup (old releases)
 10. Local install (`go install`)
+11. Documentation deployment (configured targets: GitHub Pages, statichost.eu, etc.)

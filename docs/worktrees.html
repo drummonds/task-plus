@@ -49,16 +49,28 @@
 <pre><code class="language-bash"># One-off: generate Taskfile snippets
 task-plus wt --init
 
-# Start a worktree with a Claude task
-task-plus wt start --task=add-login --spec=&quot;implement the login page&quot;
-
-# Or without --spec to get an agent that waits for Ctrl+C
+# Create a worktree and open VS Code in it
 task-plus wt start --task=add-login
+
+# In the VS Code terminal, run claude interactively (with safety checks)
+task-plus claude
+
+# Or run a headless agent for the dashboard
+task-plus wt agent --task=add-login --spec=&quot;implement the login page&quot;
 
 # Monitor all running agents
 task-plus wt dashboard          # web UI (default)
 task-plus wt dashboard --term   # terminal table
 </code></pre>
+<h2 id="typical-workflow">Typical Workflow</h2>
+<ol>
+<li><strong><code>task-plus wt start --task=add-login</code></strong> — creates a worktree and opens VS Code in it</li>
+<li><strong>In the VS Code terminal: <code>task-plus claude</code></strong> — checks you're in a worktree with sandbox enabled, then runs <code>claude --dangerously-skip-permissions</code></li>
+<li>Work interactively with Claude in the sandboxed worktree</li>
+<li><strong><code>task-plus wt review --task=add-login</code></strong> — review the diff</li>
+<li><strong><code>task-plus wt merge --task=add-login</code></strong> — merge and clean up</li>
+</ol>
+<p>For headless/automated use, <code>wt agent</code> registers with the dashboard instead.</p>
 <h2 id="how-it-works">How It Works</h2>
 <pre class="mermaid">flowchart TD
     A[wt start] --> B{Worktree exists?}
@@ -67,14 +79,19 @@ task-plus wt dashboard --term   # terminal table
     C --> E[Write .claude/settings.json]
     D --> F{settings.json exists?}
     F -->|No| E
-    F -->|Yes| G[Start status server]
+    F -->|Yes| G[Open VS Code]
     E --> G
-    G --> H[Register in agents.json]
-    H --> I{--spec provided?}
-    I -->|Yes| J[Run claude]
-    I -->|No| K[Wait for Ctrl+C]
-    J --> L[Deregister + shutdown]
-    K --> L
+</pre>
+<pre class="mermaid">flowchart TD
+    A[wt agent] --> B{Worktree exists?}
+    B -->|No| Z[Error: run wt start first]
+    B -->|Yes| C[Start status server]
+    C --> D[Register in agents.json]
+    D --> E{--spec provided?}
+    E -->|Yes| F[Run claude]
+    E -->|No| G[Wait for Ctrl+C]
+    F --> H[Deregister + shutdown]
+    G --> H
 </pre>
 <h2 id="commands">Commands</h2>
 <table>
@@ -86,8 +103,12 @@ task-plus wt dashboard --term   # terminal table
 </thead>
 <tbody>
 <tr>
-<td><code>wt start --task=NAME [--spec=&quot;PROMPT&quot;]</code></td>
-<td>Create or resume a worktree, optionally run Claude</td>
+<td><code>wt start --task=NAME</code></td>
+<td>Create or resume a worktree, open VS Code</td>
+</tr>
+<tr>
+<td><code>wt agent --task=NAME [--spec=&quot;PROMPT&quot;]</code></td>
+<td>Run Claude agent in worktree (registers with dashboard)</td>
 </tr>
 <tr>
 <td><code>wt review --task=NAME</code></td>
@@ -113,10 +134,22 @@ task-plus wt dashboard --term   # terminal table
 <td><code>wt --init</code></td>
 <td>Print Taskfile.yml snippets for all wt commands</td>
 </tr>
+<tr>
+<td><code>claude</code></td>
+<td>Run <code>claude --dangerously-skip-permissions</code> (requires worktree + sandbox)</td>
+</tr>
 </tbody>
 </table>
+<h2 id="the-claude-command">The <code>claude</code> Command</h2>
+<p><code>task-plus claude</code> is a safety wrapper that:</p>
+<ol>
+<li>Checks you're in a git worktree (not the main checkout)</li>
+<li>Checks <code>.claude/settings.json</code> exists with sandbox enabled</li>
+<li>Runs <code>claude --dangerously-skip-permissions</code></li>
+</ol>
+<p>Any extra arguments are passed through to claude.</p>
 <h2 id="agent-lifecycle">Agent Lifecycle</h2>
-<p>Each <code>wt start</code> registers itself in <code>~/.config/task-plus/agents.json</code> with:</p>
+<p>Each <code>wt agent</code> registers itself in <code>~/.config/task-plus/agents.json</code> with:</p>
 <ul>
 <li>HTTP port (random, serves <code>/status</code>)</li>
 <li>PID, worktree path, branch, project name, start time</li>
@@ -126,7 +159,7 @@ task-plus wt dashboard --term   # terminal table
 <li>Shuts down the HTTP status server</li>
 <li>Deregisters from agents.json</li>
 </ol>
-<p>Stale entries (dead PIDs) are cleaned automatically on every <code>wt start</code>.</p>
+<p>Stale entries (dead PIDs) are cleaned automatically on every <code>wt agent</code>.</p>
 <h2 id="resume-support">Resume Support</h2>
 <p>If you run <code>wt start --task=add-login</code> and the worktree directory already exists, it resumes instead of failing with &quot;branch already exists&quot;. This handles:</p>
 <ul>
@@ -149,7 +182,8 @@ task-plus wt dashboard --term   # terminal table
 <p>Each worktree gets a <code>.claude/settings.json</code> with sandbox config (denies <code>~/.ssh</code> and <code>~/.aws</code> reads). Sandbox stub files are excluded via <code>.git/info/exclude</code>.</p>
 <h2 id="taskfile-integration">Taskfile Integration</h2>
 <p>Run <code>task-plus wt --init</code> to get copy-paste Taskfile snippets:</p>
-<pre><code class="language-bash">task wt:start TASK=my-feature SPEC=&quot;implement the login page&quot;
+<pre><code class="language-bash">task wt:start TASK=my-feature
+task wt:agent TASK=my-feature SPEC=&quot;implement the login page&quot;
 task wt:review TASK=my-feature
 task wt:merge TASK=my-feature
 task wt:clean TASK=my-feature

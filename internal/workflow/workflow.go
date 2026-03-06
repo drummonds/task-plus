@@ -40,6 +40,7 @@ type Plan struct {
 	DoGoreleaser bool
 	DoCleanup    bool
 	DoInstall    bool
+	DoDeploy     bool
 }
 
 // Context carries config and flags through the workflow.

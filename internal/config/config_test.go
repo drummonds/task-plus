@@ -197,6 +197,47 @@ func TestPagesBuildFromYAML(t *testing.T) {
 	}
 }
 
+func TestPagesDeployFromYAML(t *testing.T) {
+	dir := t.TempDir()
+	yaml := `pages_deploy:
+  - type: github
+  - type: statichost
+    site: myproject
+`
+	os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte(yaml), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.PagesDeploy) != 2 {
+		t.Fatalf("PagesDeploy = %v, want 2 targets", cfg.PagesDeploy)
+	}
+	if cfg.PagesDeploy[0].Type != "github" {
+		t.Errorf("PagesDeploy[0].Type = %q, want github", cfg.PagesDeploy[0].Type)
+	}
+	if cfg.PagesDeploy[1].Type != "statichost" {
+		t.Errorf("PagesDeploy[1].Type = %q, want statichost", cfg.PagesDeploy[1].Type)
+	}
+	if cfg.PagesDeploy[1].Site != "myproject" {
+		t.Errorf("PagesDeploy[1].Site = %q, want myproject", cfg.PagesDeploy[1].Site)
+	}
+	if !cfg.HasPagesDeploy() {
+		t.Error("HasPagesDeploy should return true")
+	}
+}
+
+func TestPagesDeployEmpty(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.HasPagesDeploy() {
+		t.Error("HasPagesDeploy should return false when no targets configured")
+	}
+}
+
 func TestLoadYAML(t *testing.T) {
 	dir := t.TempDir()
 	yaml := `type: binary

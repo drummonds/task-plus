@@ -67,8 +67,11 @@
     O --> P{Fork?}
     P -->|Yes| Q[Skip Install]
     P -->|No| R[Install]
-    Q --> S[Done]
-    R --> S
+    Q --> T{Deploy Docs?}
+    R --> T
+    T -->|Yes| U[Build + Deploy Docs]
+    T -->|No| S[Done]
+    U --> S
 </pre>
 <h2 id="phases">Phases</h2>
 <h3 id="1-precheck">1. Precheck</h3>
@@ -89,7 +92,7 @@
 <li>Git add/commit if dirty</li>
 <li>Version confirmation (suggested or custom)</li>
 <li>Release comment</li>
-<li>Push, goreleaser, cleanup, install confirmations</li>
+<li>Push, goreleaser, cleanup, install, deploy confirmations</li>
 </ul>
 <h3 id="4-check">4. Check</h3>
 <p>Runs configured check commands (default: <code>task check</code> which runs fmt, vet, test).</p>
@@ -106,6 +109,7 @@
 <li>Goreleaser (binary projects)</li>
 <li>Release cleanup (old releases)</li>
 <li>Local install (<code>go install</code>)</li>
+<li>Documentation deployment (configured targets: GitHub Pages, statichost.eu, etc.)</li>
 </ol>
 
             </div>
