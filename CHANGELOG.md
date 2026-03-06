@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.32] - 2026-03-06
+
+ - Add static host files
+
 ## [0.1.31] - 2026-03-06
 
  - Cleaning up worktree implementation
