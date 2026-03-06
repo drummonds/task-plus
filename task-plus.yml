@@ -1,0 +1,9 @@
+# task-plus configuration — see https://github.com/drummonds/task-plus
+# type: library           # or "binary" (auto-detected from .goreleaser.yaml)
+# check: [task check]     # commands to run during release checks
+# changelog_format: keepachangelog  # or "simple"
+# install: true           # auto-run "go install" after release
+
+pages_deploy:
+  - type: statichost
+    site: h3-task-plus        # your site name on statichost.eu

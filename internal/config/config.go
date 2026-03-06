@@ -15,17 +15,17 @@ type CleanupConfig struct {
 }
 
 type Config struct {
-	Type             string        `yaml:"type"`
-	Precheck         []string      `yaml:"precheck"`
-	Check            []string      `yaml:"check"`
-	ChangelogFormat  string        `yaml:"changelog_format"`
-	Wasm             []string      `yaml:"wasm"`
-	GoreleaserConfig string        `yaml:"goreleaser_config"`
-	Forge            string        `yaml:"forge"`
-	Cleanup          CleanupConfig `yaml:"cleanup"`
-	Fork             *bool         `yaml:"fork"`
-	Install          *bool         `yaml:"install"`
-	InstallRetries   int           `yaml:"install_retries"`
+	Type             string          `yaml:"type"`
+	Precheck         []string        `yaml:"precheck"`
+	Check            []string        `yaml:"check"`
+	ChangelogFormat  string          `yaml:"changelog_format"`
+	Wasm             []string        `yaml:"wasm"`
+	GoreleaserConfig string          `yaml:"goreleaser_config"`
+	Forge            string          `yaml:"forge"`
+	Cleanup          CleanupConfig   `yaml:"cleanup"`
+	Fork             *bool           `yaml:"fork"`
+	Install          *bool           `yaml:"install"`
+	InstallRetries   int             `yaml:"install_retries"`
 	PagesBuild       []string        `yaml:"pages_build"`
 	PagesDeploy      []deploy.Target `yaml:"pages_deploy"`
 	Dir              string          `yaml:"-"`
