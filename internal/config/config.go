@@ -22,6 +22,7 @@ type Config struct {
 	Wasm             []string        `yaml:"wasm"`
 	GoreleaserConfig string          `yaml:"goreleaser_config"`
 	Forge            string          `yaml:"forge"`
+	Remotes          []string        `yaml:"remotes"`
 	Cleanup          CleanupConfig   `yaml:"cleanup"`
 	Fork             *bool           `yaml:"fork"`
 	Install          *bool           `yaml:"install"`
@@ -53,6 +54,7 @@ func Init(dir string) error {
 # check: [task check]     # commands to run during release checks
 # changelog_format: keepachangelog  # or "simple"
 # install: true           # auto-run "go install" after release
+# remotes: [origin]       # git remotes to push to (default: origin)
 
 pages_deploy:
   - type: statichost
@@ -101,6 +103,9 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Cleanup.KeepMinors == 0 {
 		c.Cleanup.KeepMinors = 5
+	}
+	if len(c.Remotes) == 0 {
+		c.Remotes = []string{"origin"}
 	}
 	if c.InstallRetries == 0 {
 		c.InstallRetries = 3
@@ -286,4 +291,12 @@ func (c *Config) HasWasm() bool {
 // HasPagesDeploy returns true if any deploy targets are configured.
 func (c *Config) HasPagesDeploy() bool {
 	return len(c.PagesDeploy) > 0
+}
+
+// PrimaryRemote returns the first configured remote name.
+func (c *Config) PrimaryRemote() string {
+	if len(c.Remotes) == 0 {
+		return "origin"
+	}
+	return c.Remotes[0]
 }

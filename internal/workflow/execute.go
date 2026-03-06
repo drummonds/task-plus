@@ -148,14 +148,16 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 8. Git push
+	// 8. Git push (all configured remotes)
 	if p.DoPush {
-		fmt.Println("  Pushing...")
-		if ctx.DryRun {
-			fmt.Println("  (dry-run) Would push branch and tags")
-		} else {
-			if err := git.Push(ctx.Config.Dir); err != nil {
-				return err
+		for _, remote := range ctx.Config.Remotes {
+			fmt.Printf("  Pushing to %s...\n", remote)
+			if ctx.DryRun {
+				fmt.Printf("  (dry-run) Would push branch and tags to %s\n", remote)
+			} else {
+				if err := git.PushTo(ctx.Config.Dir, remote); err != nil {
+					return fmt.Errorf("push to %s: %w", remote, err)
+				}
 			}
 		}
 	}

@@ -45,13 +45,13 @@ func Gather(ctx *Context) error {
 		p.SuggestedVersion = version.Version{Major: 0, Minor: 1, Patch: 0}
 	}
 
-	// Fork detection: compare go.mod module path vs git remote
+	// Fork detection: compare go.mod module path vs primary remote
 	if ctx.Config.Fork != nil {
 		p.IsFork = *ctx.Config.Fork
 	} else {
 		modPath, err := version.ModulePath(ctx.Config.Dir)
 		if err == nil {
-			remotePath, err := version.GitRemoteModulePath(ctx.Config.Dir)
+			remotePath, err := version.GitRemoteModulePath(ctx.Config.Dir, ctx.Config.PrimaryRemote())
 			if err == nil && remotePath != "" && remotePath != modPath {
 				p.IsFork = true
 			}
@@ -83,8 +83,8 @@ func Gather(ctx *Context) error {
 		p.HasGoreleaserCfg = true
 	}
 
-	// Detect forge and check CLI availability for release cleanup.
-	f, err := forge.Detect(ctx.Config.Dir, ctx.Config.Forge)
+	// Detect forge from primary remote; check CLI availability for release cleanup.
+	f, err := forge.Detect(ctx.Config.Dir, ctx.Config.PrimaryRemote(), ctx.Config.Forge)
 	if err != nil {
 		return fmt.Errorf("detecting forge: %w", err)
 	}

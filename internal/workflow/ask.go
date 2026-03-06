@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/drummonds/task-plus/internal/prompt"
 	"github.com/drummonds/task-plus/internal/version"
@@ -46,7 +47,15 @@ func Ask(ctx *Context) error {
 	p.Comment = prompt.AskStringOrAuto("Release comment", p.CommitMsg)
 
 	// Push
-	p.DoPush = prompt.ConfirmOrAuto("Push to remote?")
+	remotes := ctx.Config.Remotes
+	if len(remotes) > 1 {
+		fmt.Printf("  Remotes: %s\n", strings.Join(remotes, ", "))
+	}
+	pushPrompt := "Push to remote?"
+	if len(remotes) > 1 {
+		pushPrompt = fmt.Sprintf("Push to %d remotes (%s)?", len(remotes), strings.Join(remotes, ", "))
+	}
+	p.DoPush = prompt.ConfirmOrAuto(pushPrompt)
 
 	// Goreleaser
 	if ctx.Config.IsBinary() && p.HasGoreleaserCfg {
@@ -103,7 +112,11 @@ func PrintSummary(ctx *Context) {
 	}
 	fmt.Printf("  Comment: %s\n", p.Comment)
 	if p.DoPush {
-		fmt.Println("  Push: yes")
+		if len(ctx.Config.Remotes) > 1 {
+			fmt.Printf("  Push: yes (%s)\n", strings.Join(ctx.Config.Remotes, ", "))
+		} else {
+			fmt.Println("  Push: yes")
+		}
 	}
 	if p.DoGoreleaser {
 		fmt.Println("  Goreleaser: yes")

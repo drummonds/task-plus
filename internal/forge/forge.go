@@ -22,11 +22,12 @@ type Forge struct {
 }
 
 // Detect determines the forge from a config override or the git remote URL.
-func Detect(dir, override string) (Forge, error) {
+// The remote parameter specifies which git remote to inspect (e.g. "origin").
+func Detect(dir, remote, override string) (Forge, error) {
 	if override != "" {
 		return Forge{Type: Type(override)}, nil
 	}
-	cmd := exec.Command("git", "remote", "get-url", "origin")
+	cmd := exec.Command("git", "remote", "get-url", remote)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -34,6 +35,11 @@ func Detect(dir, override string) (Forge, error) {
 	}
 	url := strings.TrimSpace(string(out))
 	return Forge{Type: detectFromURL(url)}, nil
+}
+
+// DetectFromURL returns the forge type for a git remote URL. Exported for CLI use.
+func DetectFromURL(url string) Type {
+	return detectFromURL(url)
 }
 
 // extractHost returns the hostname from an SSH or HTTPS git URL.

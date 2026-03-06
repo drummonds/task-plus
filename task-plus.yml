@@ -7,3 +7,7 @@
 pages_deploy:
   - type: statichost
     site: h3-task-plus        # your site name on statichost.eu
+
+remotes:
+  - origin
+  - codeberg

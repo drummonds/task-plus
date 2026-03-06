@@ -89,10 +89,11 @@ func IsRetracted(v Version, retracted []Version) bool {
 	return slices.Contains(retracted, v)
 }
 
-// GitRemoteModulePath derives a Go module-style path from git remote origin.
+// GitRemoteModulePath derives a Go module-style path from a git remote.
+// The remote parameter specifies which git remote to inspect (e.g. "origin").
 // Returns "", nil if no remote or not a recognisable URL.
-func GitRemoteModulePath(dir string) (string, error) {
-	cmd := exec.Command("git", "remote", "get-url", "origin")
+func GitRemoteModulePath(dir, remote string) (string, error) {
+	cmd := exec.Command("git", "remote", "get-url", remote)
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

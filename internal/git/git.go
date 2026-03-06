@@ -70,7 +70,7 @@ func Tags(dir string) ([]string, error) {
 	return strings.Split(out, "\n"), nil
 }
 
-// Push pushes the current branch and tags.
+// Push pushes the current branch and tags to the default remote.
 func Push(dir string) error {
 	_, err := Run(dir, "push")
 	if err != nil {
@@ -78,6 +78,27 @@ func Push(dir string) error {
 	}
 	_, err = Run(dir, "push", "--tags")
 	return err
+}
+
+// PushTo pushes the current branch and tags to a named remote.
+func PushTo(dir, remote string) error {
+	_, err := Run(dir, "push", remote)
+	if err != nil {
+		return err
+	}
+	_, err = Run(dir, "push", remote, "--tags")
+	return err
+}
+
+// RemoteURL returns the URL for the named git remote.
+func RemoteURL(dir, remote string) (string, error) {
+	return Run(dir, "remote", "get-url", remote)
+}
+
+// HasRemote returns true if the named remote exists.
+func HasRemote(dir, remote string) bool {
+	_, err := RemoteURL(dir, remote)
+	return err == nil
 }
 
 // CurrentBranch returns the current branch name.

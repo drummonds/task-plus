@@ -12,6 +12,8 @@ import (
 	"github.com/drummonds/task-plus/internal/claude"
 	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/deploy"
+	"github.com/drummonds/task-plus/internal/forge"
+	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/md2html"
 	"github.com/drummonds/task-plus/internal/pages"
 	"github.com/drummonds/task-plus/internal/prompt"
@@ -40,6 +42,7 @@ var commands = []struct {
 }{
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
+	{"repos", "Manage git remotes for release (info, add, remove)"},
 	{"pages", "Serve docs/ directory over HTTP (subcommands: deploy, config)"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
 	{"wt", "Manage git worktrees (start, agent, review, merge, clean, list, dashboard)"},
@@ -69,6 +72,8 @@ func Main() {
 		runPages(os.Args[2:])
 	case "release:version-update":
 		runReleaseVersionUpdate(os.Args[2:])
+	case "repos":
+		runRepos(os.Args[2:])
 	case "md2html":
 		runMd2html(os.Args[2:])
 	case "wt":
@@ -401,6 +406,117 @@ func runReleaseVersionUpdate(args []string) {
 	fmt.Println("# Adapt the sed pattern and file path to your project.")
 	fmt.Println("# The VERSION environment variable is set automatically by task-plus release.")
 	fmt.Println("# Example: VERSION=v0.2.0 task release:version-update")
+}
+
+func runRepos(args []string) {
+	absDir, err := filepath.Abs(".")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(args) == 0 {
+		reposInfo(absDir)
+		return
+	}
+
+	switch args[0] {
+	case "info":
+		reposInfo(absDir)
+	case "add":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: task-plus repos add <remote-name>\n")
+			os.Exit(1)
+		}
+		reposAdd(absDir, args[1])
+	case "remove":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: task-plus repos remove <remote-name>\n")
+			os.Exit(1)
+		}
+		reposRemove(absDir, args[1])
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown repos subcommand: %s\n", args[0])
+		fmt.Fprintf(os.Stderr, "Usage: task-plus repos [info|add|remove]\n")
+		os.Exit(1)
+	}
+}
+
+func reposInfo(dir string) {
+	cfg, err := config.Load(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Show configured remotes
+	configured := make(map[string]bool)
+	fmt.Println("Configured remotes:")
+	for _, name := range cfg.Remotes {
+		configured[name] = true
+		url, err := git.RemoteURL(dir, name)
+		if err != nil {
+			fmt.Printf("  %-16s (not found in git)\n", name)
+			continue
+		}
+		forgeType := forge.DetectFromURL(url)
+		hasCLI := forge.Forge{Type: forgeType}.HasCLI()
+		cli := ""
+		if hasCLI {
+			cli = ", cli: yes"
+		}
+		fmt.Printf("  %-16s %s (%s%s)\n", name, url, forgeType, cli)
+	}
+
+	// Show git remotes not yet configured
+	allRemotes, err := git.Run(dir, "remote")
+	if err != nil {
+		return
+	}
+	var unconfigured []string
+	for _, name := range strings.Split(allRemotes, "\n") {
+		name = strings.TrimSpace(name)
+		if name != "" && !configured[name] {
+			unconfigured = append(unconfigured, name)
+		}
+	}
+	if len(unconfigured) > 0 {
+		fmt.Println("\nAvailable git remotes (not configured):")
+		for _, name := range unconfigured {
+			url, err := git.RemoteURL(dir, name)
+			if err != nil {
+				continue
+			}
+			forgeType := forge.DetectFromURL(url)
+			fmt.Printf("  %-16s %s (%s)\n", name, url, forgeType)
+		}
+		fmt.Println("\nUse 'task-plus repos add <name>' to configure.")
+	}
+}
+
+func reposAdd(dir, name string) {
+	if !git.HasRemote(dir, name) {
+		fmt.Fprintf(os.Stderr, "Error: git remote %q does not exist.\n", name)
+		fmt.Fprintf(os.Stderr, "Add it first: git remote add %s <url>\n", name)
+		os.Exit(1)
+	}
+
+	if err := config.AddRemote(dir, name); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	url, _ := git.RemoteURL(dir, name)
+	forgeType := forge.DetectFromURL(url)
+	fmt.Printf("Added remote %q (%s, %s)\n", name, url, forgeType)
+}
+
+func reposRemove(dir, name string) {
+	if err := config.RemoveRemote(dir, name); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Removed remote %q\n", name)
 }
 
 func runWt(args []string) {
