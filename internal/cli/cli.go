@@ -11,6 +11,7 @@ import (
 
 	"github.com/drummonds/task-plus/internal/claude"
 	"github.com/drummonds/task-plus/internal/config"
+	"github.com/drummonds/task-plus/internal/deploy"
 	"github.com/drummonds/task-plus/internal/md2html"
 	"github.com/drummonds/task-plus/internal/pages"
 	"github.com/drummonds/task-plus/internal/prompt"
@@ -39,7 +40,7 @@ var commands = []struct {
 }{
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
-	{"pages", "Serve docs/ directory over HTTP"},
+	{"pages", "Serve docs/ directory over HTTP (subcommands: deploy, config)"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
 	{"wt", "Manage git worktrees (start, agent, review, merge, clean, list, dashboard)"},
 	{"claude", "Run claude --dangerously-skip-permissions (requires worktree + sandbox)"},
@@ -232,6 +233,18 @@ func splitLines(s string) []string {
 }
 
 func runPages(args []string) {
+	// Check for subcommands before flag parsing
+	if len(args) > 0 {
+		switch args[0] {
+		case "deploy":
+			runPagesDeploy(args[1:])
+			return
+		case "config":
+			runPagesConfig(args[1:])
+			return
+		}
+	}
+
 	fs := flag.NewFlagSet("pages", flag.ExitOnError)
 	port := fs.Int("port", 8080, "HTTP port")
 	dir := fs.String("dir", ".", "project directory")
@@ -262,6 +275,79 @@ func runPages(args []string) {
 	if err := pages.Serve(absDir, *port, cfg.PagesBuild); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+}
+
+func runPagesDeploy(args []string) {
+	fs := flag.NewFlagSet("pages deploy", flag.ExitOnError)
+	dryRun := fs.Bool("dry-run", false, "show what would happen without deploying")
+	dir := fs.String("dir", ".", "project directory")
+	fs.Parse(args)
+
+	absDir, err := filepath.Abs(*dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	cfg, err := config.Load(absDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !cfg.HasPagesDeploy() {
+		fmt.Fprintf(os.Stderr, "No pages_deploy targets configured in task-plus.yml\n")
+		os.Exit(1)
+	}
+
+	docsDir := filepath.Join(absDir, "docs")
+	for _, target := range cfg.PagesDeploy {
+		d, err := deploy.New(target)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Deploying to %s...\n", d.Name())
+		if err := d.Deploy(absDir, docsDir, *dryRun); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	if !*dryRun {
+		fmt.Println("Done.")
+	}
+}
+
+func runPagesConfig(args []string) {
+	fs := flag.NewFlagSet("pages config", flag.ExitOnError)
+	dir := fs.String("dir", ".", "project directory")
+	fs.Parse(args)
+
+	absDir, err := filepath.Abs(*dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	cfg, err := config.Load(absDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if !cfg.HasPagesDeploy() {
+		fmt.Println("No pages_deploy targets configured.")
+		return
+	}
+
+	fmt.Println("Configured deploy targets:")
+	for i, t := range cfg.PagesDeploy {
+		fmt.Printf("  %d. type: %s", i+1, t.Type)
+		if t.Site != "" {
+			fmt.Printf(", site: %s", t.Site)
+		}
+		fmt.Println()
 	}
 }
 

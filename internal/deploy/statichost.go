@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,6 +30,10 @@ func (s *Statichost) Deploy(projectDir, docsDir string, dryRun bool) error {
 		return err
 	}
 
+	if err := s.checkSiteExists(); err != nil {
+		return err
+	}
+
 	fmt.Printf("  Deploying to statichost.eu site %q...\n", s.Site)
 	cmd := exec.Command(shcli, s.Site, docsDir)
 	cmd.Dir = projectDir
@@ -36,6 +41,33 @@ func (s *Statichost) Deploy(projectDir, docsDir string, dryRun bool) error {
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("shcli deploy failed: %w", err)
+	}
+	return nil
+}
+
+// checkSiteExists verifies the site exists on statichost.eu before deploying.
+func (s *Statichost) checkSiteExists() error {
+	apiKey := os.Getenv("STATICHOST_APIKEY")
+	if apiKey == "" {
+		return nil // shcli will report the missing key
+	}
+	builderHost := os.Getenv("STATICHOST_BUILDER")
+	if builderHost == "" {
+		builderHost = "https://builder.statichost.eu"
+	}
+	url := builderHost + "/" + s.Site + "/drop"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("checking site: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("checking site: %w", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("site %q does not exist on statichost.eu — create it at %s first", s.Site, builderHost)
 	}
 	return nil
 }

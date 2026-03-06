@@ -2,6 +2,8 @@
 
 Go CLI tool that standardizes common development workflows across repositories. Subcommand architecture — start with `release`, more commands to come.
 
+Try https://h3-task-plus.statichost.page/ for documentation.
+
 ## Install
 
 ```bash
