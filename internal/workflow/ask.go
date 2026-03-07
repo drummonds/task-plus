@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/prompt"
 	"github.com/drummonds/task-plus/internal/version"
 )
@@ -80,10 +81,18 @@ func Ask(ctx *Context) error {
 		}
 	}
 
-	// Deploy
-	if ctx.Config.HasPagesDeploy() {
+	// Deploy — check both local config and -docs sibling
+	deployCfg := ctx.Config
+	if !ctx.Config.IsDocs() {
+		if docsDir := ctx.Config.ResolveDocsRepo(); docsDir != "" {
+			if dc, err := config.Load(docsDir); err == nil {
+				deployCfg = dc
+			}
+		}
+	}
+	if deployCfg.HasPagesDeploy() {
 		fmt.Printf("  Deploy targets:")
-		for _, t := range ctx.Config.PagesDeploy {
+		for _, t := range deployCfg.PagesDeploy {
 			fmt.Printf(" %s", t.Type)
 			if t.Site != "" {
 				fmt.Printf("(%s)", t.Site)

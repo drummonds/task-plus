@@ -54,6 +54,8 @@ var knownConfigKeys = map[string]bool{
 	"install_retries":   true,
 	"pages_build":       true,
 	"pages_deploy":      true,
+	"docs_repo":         true,
+	"parent_repo":       true,
 }
 
 // Preferred task name → inverted (wrong) form.
@@ -106,6 +108,18 @@ func Run(dir string) error {
 	// --- Remotes summary ---
 	printRemotes(dir)
 
+	// --- Cross-repo checks ---
+	fmt.Println("\nCross-repo")
+	for _, f := range checkCrossRepo(dir) {
+		fmt.Println(f)
+		switch f.level {
+		case levelError:
+			errors++
+		case levelWarn:
+			warnings++
+		}
+	}
+
 	// --- Deploy summary ---
 	printDeploy(dir)
 
@@ -153,10 +167,10 @@ func checkConfig(dir string) []finding {
 
 	// Validate type
 	switch cfg.Type {
-	case "binary", "library":
+	case "binary", "library", "docs":
 		findings = append(findings, finding{levelOK, fmt.Sprintf("Type: %s", cfg.Type)})
 	default:
-		findings = append(findings, finding{levelError, fmt.Sprintf("Invalid type %q (expected: binary, library)", cfg.Type)})
+		findings = append(findings, finding{levelError, fmt.Sprintf("Invalid type %q (expected: binary, library, docs)", cfg.Type)})
 	}
 
 	// Validate changelog_format
@@ -264,6 +278,68 @@ func printRemotes(dir string) {
 		}
 		fmt.Printf("  %-16s %s (%s%s)\n", name, url, forgeType, extra)
 	}
+}
+
+func checkCrossRepo(dir string) []finding {
+	var findings []finding
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		return findings
+	}
+
+	if cfg.IsDocs() {
+		// Running from a -docs repo — check parent
+		parentDir := cfg.ResolveParentRepo()
+		if parentDir == "" {
+			findings = append(findings, finding{levelWarn, "No parent repo found (expected sibling without -docs suffix)"})
+			return findings
+		}
+		findings = append(findings, finding{levelOK, fmt.Sprintf("Parent repo: %s", parentDir)})
+
+		parentCfg, err := config.Load(parentDir)
+		if err != nil {
+			findings = append(findings, finding{levelWarn, fmt.Sprintf("Cannot load parent config: %v", err)})
+			return findings
+		}
+		if config.HasDocsDir(parentDir) {
+			findings = append(findings, finding{levelWarn, "Parent repo still has docs/ — run 'tp pages migrate clean' from parent"})
+		}
+		if parentCfg.HasPagesDeploy() {
+			findings = append(findings, finding{levelWarn, "Parent repo still has pages_deploy — should be in -docs repo only"})
+		}
+		if parentCfg.HasPagesBuild() {
+			findings = append(findings, finding{levelWarn, "Parent repo still has pages_build — should be in -docs repo only"})
+		}
+	} else {
+		// Running from main repo — check for -docs sibling
+		docsDir := cfg.ResolveDocsRepo()
+		if docsDir == "" {
+			findings = append(findings, finding{levelOK, "No -docs sibling (integrated docs)"})
+			return findings
+		}
+		findings = append(findings, finding{levelOK, fmt.Sprintf("Docs repo: %s", docsDir)})
+
+		docsCfg, err := config.Load(docsDir)
+		if err != nil {
+			findings = append(findings, finding{levelError, fmt.Sprintf("Cannot load -docs config: %v", err)})
+			return findings
+		}
+		if docsCfg.Type != "docs" {
+			findings = append(findings, finding{levelError, fmt.Sprintf("-docs repo has type %q — expected 'docs'", docsCfg.Type)})
+		}
+		if config.HasDocsDir(dir) {
+			findings = append(findings, finding{levelWarn, "Main repo still has docs/ — run 'tp pages migrate clean'"})
+		}
+		if cfg.HasPagesDeploy() {
+			findings = append(findings, finding{levelWarn, "Main repo has pages_deploy — should be in -docs repo only"})
+		}
+		if cfg.HasPagesBuild() {
+			findings = append(findings, finding{levelWarn, "Main repo has pages_build — should be in -docs repo only"})
+		}
+	}
+
+	return findings
 }
 
 func printDeploy(dir string) {

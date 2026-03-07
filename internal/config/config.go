@@ -29,6 +29,8 @@ type Config struct {
 	InstallRetries   int             `yaml:"install_retries"`
 	PagesBuild       []string        `yaml:"pages_build"`
 	PagesDeploy      []deploy.Target `yaml:"pages_deploy"`
+	DocsRepo         string          `yaml:"docs_repo"`
+	ParentRepo       string          `yaml:"parent_repo"`
 	Dir              string          `yaml:"-"`
 }
 
@@ -116,6 +118,10 @@ func (c *Config) applyDefaults() {
 }
 
 func (c *Config) detectType() string {
+	// If parent_repo is set, this is a docs project
+	if c.ParentRepo != "" {
+		return "docs"
+	}
 	name := c.detectGoreleaserConfig()
 	if name != "" {
 		c.GoreleaserConfig = name
@@ -281,6 +287,11 @@ func (c *Config) HasPagesBuild() bool {
 // IsBinary returns true if this is a binary (goreleaser) project.
 func (c *Config) IsBinary() bool {
 	return c.Type == "binary"
+}
+
+// IsDocs returns true if this is a documentation-only project.
+func (c *Config) IsDocs() bool {
+	return c.Type == "docs"
 }
 
 // HasWasm returns true if WASM build steps are configured.

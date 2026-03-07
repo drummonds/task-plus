@@ -50,7 +50,7 @@ func TestCheckConfig_InvalidType(t *testing.T) {
 	findings := checkConfig(dir)
 	hasError := false
 	for _, f := range findings {
-		if f.level == levelError && f.message == `Invalid type "invalid" (expected: binary, library)` {
+		if f.level == levelError && f.message == `Invalid type "invalid" (expected: binary, library, docs)` {
 			hasError = true
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/drummonds/task-plus/internal/changelog"
+	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/deploy"
 	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/release"
@@ -246,19 +247,36 @@ func Execute(ctx *Context) error {
 		}
 	}
 
-	// 12. Pages deploy
+	// 12. Pages deploy (delegates to -docs sibling if available)
 	if p.DoDeploy {
+		deployDir := ctx.Config.Dir
+		deployCfg := ctx.Config
+
+		// Check for -docs sibling
+		if !ctx.Config.IsDocs() {
+			if docsRepoDir := ctx.Config.ResolveDocsRepo(); docsRepoDir != "" {
+				fmt.Printf("  Using docs repo: %s\n", docsRepoDir)
+				docsCfg, err := config.Load(docsRepoDir)
+				if err != nil {
+					return fmt.Errorf("loading docs config: %w", err)
+				}
+				deployDir = docsRepoDir
+				deployCfg = docsCfg
+			}
+		}
+
 		// Build docs first if configured
-		if ctx.Config.HasPagesBuild() {
+		if deployCfg.HasPagesBuild() {
 			fmt.Println("  Building documentation...")
-			for _, cmd := range ctx.Config.PagesBuild {
+			for _, cmd := range deployCfg.PagesBuild {
 				fmt.Printf("  $ %s\n", cmd)
 				if ctx.DryRun {
 					continue
 				}
 				parts := strings.Fields(cmd)
 				c := exec.Command(parts[0], parts[1:]...)
-				c.Dir = ctx.Config.Dir
+				c.Dir = deployDir
+				c.Env = append(os.Environ(), "TP_VERSION="+p.Version.String())
 				c.Stdout = os.Stdout
 				c.Stderr = os.Stderr
 				if err := c.Run(); err != nil {
@@ -267,14 +285,14 @@ func Execute(ctx *Context) error {
 			}
 		}
 
-		docsDir := filepath.Join(ctx.Config.Dir, "docs")
-		for _, target := range ctx.Config.PagesDeploy {
+		docsDir := filepath.Join(deployDir, "docs")
+		for _, target := range deployCfg.PagesDeploy {
 			d, err := deploy.New(target)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("  Deploying to %s...\n", d.Name())
-			if err := d.Deploy(ctx.Config.Dir, docsDir, ctx.DryRun); err != nil {
+			if err := d.Deploy(deployDir, docsDir, ctx.DryRun); err != nil {
 				return err
 			}
 		}

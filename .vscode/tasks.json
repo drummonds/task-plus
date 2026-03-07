@@ -1,0 +1,21 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Terminal 1",
+      "type": "shell",
+      "command": "bash",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "terminals" },
+      "runOptions": { "runOn": "folderOpen" }
+    },
+    {
+      "label": "Terminal 2",
+      "type": "shell",
+      "command": "bash",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated", "group": "terminals" },
+      "runOptions": { "runOn": "folderOpen" }
+    }
+  ]
+}
