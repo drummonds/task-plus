@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.39] - 2026-03-07
+
+ - Rereleasing to codeberge
+
 ## [0.1.38] - 2026-03-07
 
  - Docs to a second repo
