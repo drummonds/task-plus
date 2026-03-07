@@ -1,3 +1,4 @@
 dist/
 /task-plus
 .claude/settings.json
+.vscode/tasks.json
