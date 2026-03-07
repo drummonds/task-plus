@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{.Project}} - {{.Subtitle}}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <style>
+        pre {
+            background-color: #2b2b2b;
+            color: #f8f8f2;
+            padding: 1.25em 1.5em;
+            overflow-x: auto;
+        }
+        pre code {
+            color: inherit;
+            background: none;
+            padding: 0;
+            font-size: 0.875em;
+        }
+        code {
+            background-color: #f5f5f5;
+            color: #e83e8c;
+            padding: 0.125em 0.375em;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <h1 class="title">{{.Project}}</h1>
+            <h2 class="subtitle">{{.Subtitle}}</h2>
+
+            {{- if .Intro}}
+            <div class="content">
+                {{.Intro}}
+            </div>
+            <hr>
+            {{- end}}
+
+            <div class="content">
+                <h3>Pages</h3>
+                <ul>
+                    {{- range .Pages}}
+                    <li><a href="{{.Filename}}">{{.Title}}</a></li>
+                    {{- end}}
+                </ul>
+            </div>
+        </div>
+    </section>
+</body>
+</html>
