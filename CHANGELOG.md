@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.41] - 2026-03-08
+
+ - Improved docs and worktree
+
 ## [0.1.40] - 2026-03-08
 
  - Improving documentaiton
