@@ -311,6 +311,9 @@ func checkCrossRepo(dir string) []finding {
 		if parentCfg.HasPagesBuild() {
 			findings = append(findings, finding{levelWarn, "Parent repo still has pages_build — should be in -docs repo only"})
 		}
+
+		// Check for .md files without DOC- prefix in -docs repo
+		findings = append(findings, checkDocsMdPrefix(dir)...)
 	} else {
 		// Running from main repo — check for -docs sibling
 		docsDir := cfg.ResolveDocsRepo()
@@ -339,6 +342,48 @@ func checkCrossRepo(dir string) []finding {
 		}
 	}
 
+	return findings
+}
+
+// checkDocsMdPrefix warns about .md files in a -docs repo root that lack the DOC- prefix.
+// Files like go.md, CHANGELOG.md etc. belong in the parent project; docs-repo markdown
+// should use DOC-README.md, DOC-CHANGELOG.md etc. to avoid confusion.
+func checkDocsMdPrefix(dir string) []finding {
+	var findings []finding
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return findings
+	}
+
+	// Allowlisted names that don't need the DOC- prefix.
+	allowed := map[string]bool{
+		"LICENSE.md": true,
+	}
+
+	var bad []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasSuffix(strings.ToLower(name), ".md") {
+			continue
+		}
+		if strings.HasPrefix(name, "DOC-") {
+			continue
+		}
+		if allowed[name] {
+			continue
+		}
+		bad = append(bad, name)
+	}
+	if len(bad) == 0 {
+		findings = append(findings, finding{levelOK, "All .md files use DOC- prefix"})
+	} else {
+		for _, name := range bad {
+			findings = append(findings, finding{levelWarn, fmt.Sprintf("%s should be renamed to DOC-%s (docs-repo convention)", name, name)})
+		}
+	}
 	return findings
 }
 

@@ -153,6 +153,42 @@ func TestCheckTaskfile_Inversion(t *testing.T) {
 	}
 }
 
+func TestCheckDocsMdPrefix_AllPrefixed(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "DOC-README.md"), []byte("# hi"), 0644)
+	os.WriteFile(filepath.Join(dir, "DOC-CHANGELOG.md"), []byte("# log"), 0644)
+	findings := checkDocsMdPrefix(dir)
+	if len(findings) != 1 || findings[0].level != levelOK {
+		t.Errorf("expected 1 OK, got %v", findings)
+	}
+}
+
+func TestCheckDocsMdPrefix_UnprefixedWarns(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# hi"), 0644)
+	os.WriteFile(filepath.Join(dir, "CHANGELOG.md"), []byte("# log"), 0644)
+	os.WriteFile(filepath.Join(dir, "DOC-ROADMAP.md"), []byte("# ok"), 0644)
+	findings := checkDocsMdPrefix(dir)
+	warns := 0
+	for _, f := range findings {
+		if f.level == levelWarn {
+			warns++
+		}
+	}
+	if warns != 2 {
+		t.Errorf("expected 2 warnings, got %d from %v", warns, findings)
+	}
+}
+
+func TestCheckDocsMdPrefix_LicenseAllowed(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "LICENSE.md"), []byte("MIT"), 0644)
+	findings := checkDocsMdPrefix(dir)
+	if len(findings) != 1 || findings[0].level != levelOK {
+		t.Errorf("expected OK (LICENSE.md allowed), got %v", findings)
+	}
+}
+
 func TestCheckTaskfile_NoInversionWhenPreferredExists(t *testing.T) {
 	dir := t.TempDir()
 	// Both preferred and inverted exist — no warning (user may have aliases)

@@ -20,14 +20,46 @@ Both binaries are identical — `tp` is just shorter to type.
 
 ## Commands
 
-### `task-plus release`
+| Command | Description |
+|---------|-------------|
+| `check` | Validate task-plus.yml and Taskfile.yml configuration |
+| `release` | Interactive release workflow |
+| `release:version-update` | Scaffold a Taskfile task to update version strings |
+| `repos` | Manage git remotes for release |
+| `pages` | Serve, deploy, configure, and migrate documentation |
+| `md2html` | Convert markdown files to Bulma-styled HTML |
+| `wt` | Manage git worktrees for isolated Claude tasks |
+| `claude` | Run claude with --dangerously-skip-permissions (requires worktree + sandbox) |
+| `self` | Manage task-plus itself |
+
+### Global Flags
+
+- `--init` — create a default `task-plus.yml` config file (statichost.eu pre-configured)
+- `-a` — list available commands
+- `--version` — print version
+
+### `tp check`
+
+Validates project configuration and prints a report. Checks:
+
+- `task-plus.yml` — parses YAML, validates type/forge/changelog_format/deploy targets, flags unknown fields
+- `Taskfile.yml` — checks standard tasks (fmt, vet, test, check), detects name conflicts and inversions
+- Cross-repo — validates `-docs` sibling relationship, checks for stale `docs/` or misplaced config
+- In a `-docs` repo, warns about `.md` files missing the `DOC-` prefix
+
+```bash
+tp check
+tp check --dir /path/to/project
+```
+
+### `tp release`
 
 Interactive release workflow. Replaces duplicated `task release` Taskfile patterns.
 
 ```bash
-task-plus release
-task-plus release --dry-run
-task-plus release --yes --dir /path/to/project
+tp release
+tp release --dry-run
+tp release --yes --dir /path/to/project
 ```
 
 Flags:
@@ -35,7 +67,7 @@ Flags:
 - `--yes` — auto-confirm all prompts
 - `--dir <path>` — project directory (default: `.`)
 
-**Taskfile guard:** If the project's `Taskfile.yml` contains a `release:` task, `task-plus release` refuses to run (to avoid conflict). Remove the Taskfile release task and use `task-plus release` directly.
+**Taskfile guard:** If `Taskfile.yml` contains a `release:` task, tp refuses to run (to avoid conflict).
 
 #### Release Workflow
 
@@ -51,25 +83,100 @@ Flags:
 10. Cleanup old GitHub releases
 11. Local install
 12. Deploy documentation (if configured)
+13. Run `post:release` Taskfile task (if present)
 
-### `task-plus pages`
+### `tp release:version-update`
 
-Serve the `docs/` directory over HTTP for local preview.
+Scaffolds a sample Taskfile task for updating version strings during release. The release workflow calls this task (if it exists) with `VERSION=vX.Y.Z` after the version is confirmed.
 
 ```bash
-task-plus pages
-task-plus pages --port 3000 --dir /path/to/project
+tp release:version-update --init
 ```
 
-Flags:
+### `tp repos`
+
+Manage which git remotes are pushed to during release.
+
+```bash
+tp repos              # show configured and available remotes
+tp repos info         # same as above
+tp repos add <name>   # add a git remote to the release push list
+tp repos remove <name> # remove a remote from the release push list
+```
+
+### `tp pages`
+
+Serve, deploy, and manage documentation. When run from a main project repo with a `-docs` sibling, automatically delegates to the docs repo.
+
+```bash
+tp pages                    # build and serve docs/ over HTTP
+tp pages --port 3000        # custom port
+tp pages deploy             # deploy to configured targets
+tp pages deploy --dry-run   # show what would happen
+tp pages config             # show configured deploy targets
+tp pages migrate            # create a -docs sibling repo from docs/
+tp pages migrate clean      # remove docs/ and pages config from main repo after migration
+```
+
+Flags (serve mode):
 - `--port <n>` — HTTP port (default: `8080`)
 - `--dir <path>` — project directory (default: `.`)
 
-### Global Flags
+### `tp md2html`
 
-- `--init` — create a default `task-plus.yml` config file (statichost.eu pre-configured)
-- `-a` — list available commands
-- `--version` — print version
+Converts markdown files to Bulma-styled HTML pages with breadcrumb navigation.
+
+```bash
+tp md2html                                    # convert docs/internal/*.md in place
+tp md2html --src docs/api --dst docs/api      # custom directories
+tp md2html --file README.md --dst docs/       # single file
+tp md2html --index --subtitle "API Docs"      # generate index.html
+```
+
+Flags:
+- `--src <dir>` — source markdown directory (default: `docs/internal`)
+- `--dst <dir>` — destination HTML directory (default: `docs/internal`)
+- `--label <text>` — breadcrumb label (default: `Internal Docs`)
+- `--project <name>` — project name (auto-detected from go.mod)
+- `--file <path>` — single file to convert (overrides `--src`)
+- `--index` — generate an `index.html` listing all pages
+- `--subtitle <text>` — subtitle for the index page (default: `Documentation`)
+
+### `tp wt`
+
+Manage git worktrees for running Claude tasks in isolation. Each worktree gets its own branch (`task/<name>`), sandbox settings, and VS Code configuration.
+
+```bash
+tp wt start --task=my-feature      # create worktree, open as VS Code workspace folder
+tp wt agent --task=my-feature --spec="implement login"  # register agent + run claude
+tp wt review --task=my-feature     # diff task branch against main
+tp wt merge --task=my-feature      # merge branch and remove worktree
+tp wt clean --task=my-feature      # merge, remove worktree, delete branch, close VS Code folder
+tp wt list                         # list active worktrees
+tp wt dashboard                    # agent dashboard (web UI; --term for terminal)
+tp wt --init                       # print Taskfile snippets for wt: tasks
+```
+
+Task names "doc" and "docs" are reserved (they clash with the `-docs` repo convention).
+
+### `tp claude`
+
+Runs `claude --dangerously-skip-permissions` with safety guards. Requires:
+1. Running inside a git worktree (not the main repo)
+2. `.claude/settings.json` with sandbox enabled
+
+```bash
+tp claude
+tp claude "implement the search feature"
+```
+
+### `tp self`
+
+Manage the task-plus installation.
+
+```bash
+tp self update    # update to latest version via go install
+```
 
 ## Config
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/drummonds/task-plus/internal/agent"
 	"github.com/drummonds/task-plus/internal/dashboard"
+	"github.com/drummonds/task-plus/internal/prompt"
 )
 
 const settingsJSON = `{
@@ -124,10 +125,10 @@ func runStart(args []string) error {
 		addToGitignore(dir, []string{".claude/settings.json", ".vscode/tasks.json"})
 	}
 
-	// Open VS Code
+	// Open VS Code — use --add to add as workspace folder instead of new window
 	if _, err := exec.LookPath("code"); err == nil {
-		fmt.Printf("Opening VS Code in %s\n", wtPath)
-		exec.Command("code", wtPath).Run()
+		fmt.Printf("Opening VS Code workspace folder %s\n", wtPath)
+		exec.Command("code", "--add", wtPath).Run()
 	} else {
 		fmt.Printf("Worktree ready at %s (VS Code 'code' not found in PATH)\n", wtPath)
 	}
@@ -298,16 +299,51 @@ func runClean(args []string) error {
 	wtPath := worktreePath(dir, projName, task)
 	branch := "task/" + task
 
-	fmt.Printf("Removing worktree at %s (force)\n", wtPath)
+	// Show plan
+	fmt.Println("This will:")
+	fmt.Printf("  1. Merge %s into current branch\n", branch)
+	fmt.Printf("  2. Remove worktree at %s\n", wtPath)
+	fmt.Printf("  3. Delete branch %s\n", branch)
+	fmt.Printf("  4. Close VS Code workspace folder\n")
+	fmt.Println()
+
+	if !prompt.Confirm("Proceed?") {
+		fmt.Println("Aborted.")
+		return nil
+	}
+
+	// 1. Merge
+	fmt.Printf("\nMerging %s into current branch\n", branch)
+	if err := git(dir, "merge", branch); err != nil {
+		return fmt.Errorf("merge failed: %w (worktree left in place)", err)
+	}
+
+	// 2. Remove worktree
+	fmt.Printf("Removing worktree at %s\n", wtPath)
 	if err := git(dir, "worktree", "remove", wtPath, "--force"); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: worktree remove: %v\n", err)
 	}
 
-	if err := git(dir, "branch", "-D", branch); err != nil {
+	// 3. Delete branch
+	if err := git(dir, "branch", "-d", branch); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: branch delete: %v\n", err)
 	}
 
+	// 4. Close VS Code workspace folder
+	closeVSCodeFolder(wtPath)
+
 	return nil
+}
+
+// closeVSCodeFolder removes a folder from the current VS Code workspace.
+func closeVSCodeFolder(wtPath string) {
+	codePath, err := exec.LookPath("code")
+	if err != nil {
+		return
+	}
+	// URI-encode the path for the --remove flag
+	fmt.Printf("Closing VS Code workspace folder %s\n", wtPath)
+	exec.Command(codePath, "--remove", wtPath).Run()
 }
 
 func runList(args []string) error {
@@ -375,6 +411,10 @@ func parseTaskArgs(args []string) (task, dir string, err error) {
 	}
 	if task == "" {
 		return "", "", fmt.Errorf("--task is required")
+	}
+	lower := strings.ToLower(task)
+	if lower == "doc" || lower == "docs" {
+		return "", "", fmt.Errorf("task name %q is reserved — it clashes with the -docs repo convention", task)
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -556,7 +596,7 @@ func printInit() {
       - task-plus wt merge --task={{.TASK}}
 
   wt:clean:
-    desc: Remove worktree and delete branch without merging
+    desc: Merge branch, remove worktree, close VS Code folder
     requires:
       vars: [TASK]
     cmds:
