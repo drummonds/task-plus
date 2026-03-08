@@ -302,9 +302,9 @@ func runClean(args []string) error {
 	// Show plan
 	fmt.Println("This will:")
 	fmt.Printf("  1. Merge %s into current branch\n", branch)
-	fmt.Printf("  2. Remove worktree at %s\n", wtPath)
-	fmt.Printf("  3. Delete branch %s\n", branch)
-	fmt.Printf("  4. Close VS Code workspace folder\n")
+	fmt.Printf("  2. Close VS Code workspace folder\n")
+	fmt.Printf("  3. Remove worktree at %s\n", wtPath)
+	fmt.Printf("  4. Delete branch %s\n", branch)
 	fmt.Println()
 
 	if !prompt.Confirm("Proceed?") {
@@ -318,19 +318,19 @@ func runClean(args []string) error {
 		return fmt.Errorf("merge failed: %w (worktree left in place)", err)
 	}
 
-	// 2. Remove worktree
+	// 2. Close VS Code workspace folder (before removing worktree directory)
+	closeVSCodeFolder(wtPath)
+
+	// 3. Remove worktree
 	fmt.Printf("Removing worktree at %s\n", wtPath)
 	if err := git(dir, "worktree", "remove", wtPath, "--force"); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: worktree remove: %v\n", err)
 	}
 
-	// 3. Delete branch
+	// 4. Delete branch
 	if err := git(dir, "branch", "-d", branch); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: branch delete: %v\n", err)
 	}
-
-	// 4. Close VS Code workspace folder
-	closeVSCodeFolder(wtPath)
 
 	return nil
 }
