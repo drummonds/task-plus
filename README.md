@@ -239,3 +239,12 @@ pages_deploy:
   - type: statichost
     site: my-docs
 ```
+
+## Links
+
+| | |
+|---|---|
+| Documentation | https://h3-task-plus.statichost.page/ |
+| Source (Codeberg) | https://codeberg.org/hum3/task-plus |
+| Mirror (GitHub) | https://github.com/drummonds/task-plus |
+| Docs repo | https://codeberg.org/hum3/task-plus-docs |
