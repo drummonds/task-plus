@@ -130,7 +130,7 @@ Converts markdown files to Bulma-styled HTML pages with breadcrumb navigation.
 tp md2html                                    # convert docs/internal/*.md in place
 tp md2html --src docs/api --dst docs/api      # custom directories
 tp md2html --file README.md --dst docs/       # single file
-tp md2html --index --subtitle "API Docs"      # generate index.html
+tp md2html --dst docs --index --project myapp # generate index.html from all .html in --dst
 ```
 
 Flags:
@@ -139,8 +139,24 @@ Flags:
 - `--label <text>` — breadcrumb label (default: `Internal Docs`)
 - `--project <name>` — project name (auto-detected from go.mod)
 - `--file <path>` — single file to convert (overrides `--src`)
-- `--index` — generate an `index.html` listing all pages
+- `--index` — generate an `index.html` listing all `.html` files in `--dst`
 - `--subtitle <text>` — subtitle for the index page (default: `Documentation`)
+
+When `--index` is set, the generated `index.html` includes:
+- **Pages table** — all `.html` files found in `--dst` (not just files converted in this run)
+- **Links table** — auto-discovered from git remotes (parent repo via `parent_repo` in `task-plus.yml`)
+- **Intro content** — rendered from `_index.md` if present in `--dst` or `--src`
+
+Typical docs repo Taskfile pattern — run `--index` last so it picks up all pages:
+
+```yaml
+docs:build:
+  cmds:
+    - task-plus md2html --src docs --dst docs           # convert docs/*.md
+    - task-plus md2html --file DOC-README.md --dst docs  # individual files
+    - task-plus md2html --file ../myapp/README.md --dst docs
+    - task-plus md2html --dst docs --index --project myapp  # index last
+```
 
 ### `tp wt`
 
