@@ -155,7 +155,10 @@ func (c *Config) detectCheck() []string {
 	if _, err := os.Stat(filepath.Join(c.Dir, "Taskfile.yml")); err == nil {
 		return []string{"task check"}
 	}
-	return []string{"go fmt ./...", "go vet ./...", "go test ./..."}
+	if _, err := os.Stat(filepath.Join(c.Dir, "go.mod")); err == nil {
+		return []string{"go fmt ./...", "go vet ./...", "go test ./..."}
+	}
+	return nil
 }
 
 // hasTask checks if YAML data contains a top-level task with the given name.
@@ -277,6 +280,12 @@ func (c *Config) detectPagesBuild() []string {
 		fmt.Fprintf(os.Stderr, "Warning: Taskfile has 'build-pages' task — consider renaming to 'docs:build' for auto-detection.\n")
 	}
 	return nil
+}
+
+// HasGoMod returns true if a go.mod file exists in the project directory.
+func (c *Config) HasGoMod() bool {
+	_, err := os.Stat(filepath.Join(c.Dir, "go.mod"))
+	return err == nil
 }
 
 // HasPagesBuild returns true if page build steps are configured.

@@ -19,9 +19,9 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("Type = %q, want library", cfg.Type)
 	}
 
-	// No Taskfile → fallback checks
-	if len(cfg.Check) != 3 {
-		t.Errorf("Check = %v, want 3 fallback commands", cfg.Check)
+	// No Taskfile and no go.mod → no checks
+	if len(cfg.Check) != 0 {
+		t.Errorf("Check = %v, want empty (no go.mod)", cfg.Check)
 	}
 
 	if cfg.ChangelogFormat != "keepachangelog" {
@@ -56,6 +56,19 @@ func TestDetectTaskfile(t *testing.T) {
 	}
 	if len(cfg.Check) != 1 || cfg.Check[0] != "task check" {
 		t.Errorf("Check = %v, want [task check]", cfg.Check)
+	}
+}
+
+func TestDetectCheckWithGoMod(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n"), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Check) != 3 {
+		t.Errorf("Check = %v, want 3 Go fallback commands", cfg.Check)
 	}
 }
 
