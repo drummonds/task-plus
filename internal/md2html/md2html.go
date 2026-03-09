@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -35,6 +37,12 @@ type Config struct {
 type pageInfo struct {
 	Title    string
 	Filename string
+}
+
+// LinkInfo holds a label/URL pair for the index links section.
+type LinkInfo struct {
+	Label string
+	URL   string
 }
 
 type breadcrumb struct {
@@ -88,17 +96,17 @@ func Run(cfg Config) error {
 		return nil
 	}
 
+	// Convert .md files from Src directory.
+	converted := make(map[string]pageInfo) // filename -> info
 	entries, err := os.ReadDir(cfg.Src)
-	if err != nil {
+	if err != nil && !cfg.Index {
+		// If --index only (no src to read), that's fine.
 		return fmt.Errorf("read %s: %w", cfg.Src, err)
 	}
-
-	var pages []pageInfo
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		// Skip _index.md from normal conversion; it's used as index intro content.
 		if entry.Name() == "_index.md" {
 			continue
 		}
@@ -106,11 +114,14 @@ func Run(cfg Config) error {
 		if err != nil {
 			return fmt.Errorf("convert %s: %w", entry.Name(), err)
 		}
-		pages = append(pages, info)
+		converted[info.Filename] = info
 	}
 
 	if cfg.Index {
-		if err := generateIndex(md, cfg, pages); err != nil {
+		// Scan --dst for all .html files, merging with just-converted pages.
+		pages := scanDstPages(cfg.Dst, converted)
+		links := discoverLinks()
+		if err := generateIndex(md, cfg, pages, links); err != nil {
 			return fmt.Errorf("generate index: %w", err)
 		}
 	}
@@ -171,10 +182,11 @@ type indexData struct {
 	Subtitle string
 	Intro    template.HTML
 	Pages    []pageInfo
+	Links    []LinkInfo
 }
 
 // generateIndex creates an index.html listing all converted pages.
-func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo) error {
+func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo, links []LinkInfo) error {
 	idxBytes, err := templateFS.ReadFile("index.html")
 	if err != nil {
 		return fmt.Errorf("read index template: %w", err)
@@ -185,12 +197,16 @@ func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo) error {
 	}
 
 	// Render optional _index.md intro content.
+	// Look in both --dst and --src (--dst first, since that's where docs live).
 	var intro template.HTML
-	introPath := filepath.Join(cfg.Src, "_index.md")
-	if introContent, err := os.ReadFile(introPath); err == nil {
-		var buf bytes.Buffer
-		if err := md.Convert(introContent, &buf); err == nil {
-			intro = template.HTML(buf.String())
+	for _, dir := range []string{cfg.Dst, cfg.Src} {
+		introPath := filepath.Join(dir, "_index.md")
+		if introContent, err := os.ReadFile(introPath); err == nil {
+			var buf bytes.Buffer
+			if err := md.Convert(introContent, &buf); err == nil {
+				intro = template.HTML(buf.String())
+			}
+			break
 		}
 	}
 
@@ -199,6 +215,7 @@ func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo) error {
 		Subtitle: cfg.Subtitle,
 		Intro:    intro,
 		Pages:    pages,
+		Links:    links,
 	}
 
 	var out bytes.Buffer
@@ -212,6 +229,197 @@ func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo) error {
 	}
 	fmt.Printf("index -> %s\n", outPath)
 	return nil
+}
+
+// scanDstPages scans the destination directory for .html files, merging with
+// already-converted pages. Converted page titles take precedence.
+func scanDstPages(dst string, converted map[string]pageInfo) []pageInfo {
+	entries, err := os.ReadDir(dst)
+	if err != nil {
+		// Return just the converted pages if dst can't be read.
+		pages := make([]pageInfo, 0, len(converted))
+		for _, p := range converted {
+			pages = append(pages, p)
+		}
+		return pages
+	}
+
+	seen := make(map[string]bool)
+	var pages []pageInfo
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".html") || name == "index.html" {
+			continue
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+
+		// Prefer title from conversion (extracted from markdown heading).
+		if info, ok := converted[name]; ok {
+			pages = append(pages, info)
+			continue
+		}
+		// Extract title from existing .html file's <title> tag.
+		title := extractHTMLTitle(filepath.Join(dst, name), name)
+		pages = append(pages, pageInfo{Title: title, Filename: name})
+	}
+
+	sort.Slice(pages, func(i, j int) bool {
+		return pages[i].Filename < pages[j].Filename
+	})
+	return pages
+}
+
+// titleTagRe matches <title>...</title> in HTML.
+var titleTagRe = regexp.MustCompile(`<title>([^<]+)</title>`)
+
+// extractHTMLTitle reads an HTML file and extracts the page title from <title>.
+// The template format is "Title - Project", so we strip the " - Project" suffix.
+func extractHTMLTitle(path, fallback string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return strings.TrimSuffix(fallback, ".html")
+	}
+	m := titleTagRe.FindSubmatch(data)
+	if m == nil {
+		return strings.TrimSuffix(fallback, ".html")
+	}
+	title := string(m[1])
+	// Strip " - ProjectName" suffix added by template.
+	if idx := strings.Index(title, " - "); idx > 0 {
+		title = title[:idx]
+	}
+	return title
+}
+
+// discoverLinks auto-discovers project links from git remotes and task-plus.yml.
+// When run from a docs repo (has parent_repo), shows both parent "Source" links
+// and current "Docs repo" links. When run from a non-docs repo, shows "Source" links only.
+func discoverLinks() []LinkInfo {
+	var links []LinkInfo
+
+	cwdRemotes := gitRemoteURLs(".")
+	parentDir := readParentRepo(".")
+	isDocsRepo := parentDir != ""
+
+	if isDocsRepo {
+		// We're in a docs repo: parent remotes are "Source", cwd remotes are "Docs repo".
+		parentRemotes := gitRemoteURLs(parentDir)
+		for _, name := range sortedKeys(parentRemotes) {
+			webURL := gitURLToWeb(parentRemotes[name])
+			if webURL == "" {
+				continue
+			}
+			label := "Source"
+			if len(parentRemotes) > 1 {
+				label = "Source (" + name + ")"
+			}
+			links = append(links, LinkInfo{Label: label, URL: webURL})
+		}
+		for _, name := range sortedKeys(cwdRemotes) {
+			webURL := gitURLToWeb(cwdRemotes[name])
+			if webURL == "" {
+				continue
+			}
+			label := "Docs repo"
+			if len(cwdRemotes) > 1 {
+				label = "Docs repo (" + name + ")"
+			}
+			links = append(links, LinkInfo{Label: label, URL: webURL})
+		}
+	} else {
+		// Not a docs repo: cwd remotes are "Source".
+		for _, name := range sortedKeys(cwdRemotes) {
+			webURL := gitURLToWeb(cwdRemotes[name])
+			if webURL == "" {
+				continue
+			}
+			label := "Source"
+			if len(cwdRemotes) > 1 {
+				label = "Source (" + name + ")"
+			}
+			links = append(links, LinkInfo{Label: label, URL: webURL})
+		}
+	}
+
+	return links
+}
+
+// readParentRepo reads parent_repo from task-plus.yml in dir.
+func readParentRepo(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, "task-plus.yml"))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "parent_repo:") {
+			val := strings.TrimPrefix(line, "parent_repo:")
+			val = strings.TrimSpace(val)
+			if val != "" && !filepath.IsAbs(val) {
+				val = filepath.Join(dir, val)
+			}
+			return val
+		}
+	}
+	return ""
+}
+
+// gitRemoteURLs returns a map of remote name -> URL for the git repo in dir.
+func gitRemoteURLs(dir string) map[string]string {
+	cmd := exec.Command("git", "remote")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	remotes := make(map[string]string)
+	for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		urlCmd := exec.Command("git", "remote", "get-url", name)
+		urlCmd.Dir = dir
+		urlOut, err := urlCmd.Output()
+		if err != nil {
+			continue
+		}
+		remotes[name] = strings.TrimSpace(string(urlOut))
+	}
+	return remotes
+}
+
+// gitURLToWeb converts a git remote URL to a web-browsable URL.
+// Handles SSH (git@host:org/repo.git) and HTTPS formats.
+func gitURLToWeb(rawURL string) string {
+	u := strings.TrimSpace(rawURL)
+	u = strings.TrimSuffix(u, ".git")
+
+	// SSH: git@github.com:org/repo -> https://github.com/org/repo
+	if strings.HasPrefix(u, "git@") {
+		u = strings.TrimPrefix(u, "git@")
+		u = strings.Replace(u, ":", "/", 1)
+		return "https://" + u
+	}
+	// Already HTTPS
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+		return u
+	}
+	return ""
+}
+
+// sortedKeys returns map keys in sorted order.
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func extractTitle(content []byte, fallback string) string {
