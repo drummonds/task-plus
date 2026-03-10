@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.48] - 2026-03-10
+
+ - Fixing release
+
 ## [0.1.47] - 2026-03-10
 
  - bug fix and merge readme feature
