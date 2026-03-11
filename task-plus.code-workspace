@@ -1,6 +1,12 @@
 {
 	"folders": [
 		{
+			"path": "../task-plus"
+		},
+		{
+			"path": "../task-plus-docs"
+		},
+		{
 			"path": "."
 		}
 	],
