@@ -2,7 +2,7 @@
 
 Go CLI tool that standardizes common development workflows across repositories. Subcommand architecture — start with `release`, more commands to come.
 
-<!-- auto:version -->Latest: v0.1.46<!-- /auto:version -->
+<!-- auto:version -->Latest: v0.1.49<!-- /auto:version -->
 
 Try https://h3-task-plus.statichost.page/ for documentation.
 
