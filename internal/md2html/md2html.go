@@ -297,82 +297,31 @@ func extractHTMLTitle(path, fallback string) string {
 }
 
 // discoverLinks auto-discovers project links from git remotes and task-plus.yml.
-// When run from a docs repo (has parent_repo), shows both parent "Source" links
-// and current "Docs repo" links. When run from a non-docs repo, shows "Source" links only.
-// Also adds a "Documentation" link from statichost config if available.
+// Shows "Source" links from git remotes and a "Documentation" link from statichost config.
 func discoverLinks() []LinkInfo {
 	var links []LinkInfo
 
 	cwdRemotes := gitRemoteURLs(".")
-	parentDir := readParentRepo(".")
-	isDocsRepo := parentDir != ""
 
 	// Documentation link from statichost config
 	if docURL := readDocumentationURL("."); docURL != "" {
 		links = append(links, LinkInfo{Label: "Documentation", URL: docURL})
 	}
 
-	if isDocsRepo {
-		// We're in a docs repo: parent remotes are "Source", cwd remotes are "Docs repo".
-		parentRemotes := gitRemoteURLs(parentDir)
-		for _, name := range sortedKeys(parentRemotes) {
-			webURL := git.URLToWeb(parentRemotes[name])
-			if webURL == "" {
-				continue
-			}
-			label := "Source"
-			if len(parentRemotes) > 1 {
-				label = "Source (" + name + ")"
-			}
-			links = append(links, LinkInfo{Label: label, URL: webURL})
+	// Current repo remotes are "Source".
+	for _, name := range sortedKeys(cwdRemotes) {
+		webURL := git.URLToWeb(cwdRemotes[name])
+		if webURL == "" {
+			continue
 		}
-		for _, name := range sortedKeys(cwdRemotes) {
-			webURL := git.URLToWeb(cwdRemotes[name])
-			if webURL == "" {
-				continue
-			}
-			label := "Docs repo"
-			if len(cwdRemotes) > 1 {
-				label = "Docs repo (" + name + ")"
-			}
-			links = append(links, LinkInfo{Label: label, URL: webURL})
+		label := "Source"
+		if len(cwdRemotes) > 1 {
+			label = "Source (" + name + ")"
 		}
-	} else {
-		// Not a docs repo: cwd remotes are "Source".
-		for _, name := range sortedKeys(cwdRemotes) {
-			webURL := git.URLToWeb(cwdRemotes[name])
-			if webURL == "" {
-				continue
-			}
-			label := "Source"
-			if len(cwdRemotes) > 1 {
-				label = "Source (" + name + ")"
-			}
-			links = append(links, LinkInfo{Label: label, URL: webURL})
-		}
+		links = append(links, LinkInfo{Label: label, URL: webURL})
 	}
 
 	return links
-}
-
-// readParentRepo reads parent_repo from task-plus.yml in dir.
-func readParentRepo(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, "task-plus.yml"))
-	if err != nil {
-		return ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "parent_repo:") {
-			val := strings.TrimPrefix(line, "parent_repo:")
-			val = strings.TrimSpace(val)
-			if val != "" && !filepath.IsAbs(val) {
-				val = filepath.Join(dir, val)
-			}
-			return val
-		}
-	}
-	return ""
 }
 
 // gitRemoteURLs returns a map of remote name -> URL for the git repo in dir.
@@ -401,26 +350,10 @@ func gitRemoteURLs(dir string) map[string]string {
 }
 
 // readDocumentationURL reads the statichost site from task-plus.yml and returns its URL.
-// For docs repos, reads directly. For project repos, reads from the -docs sibling.
 func readDocumentationURL(dir string) string {
-	// Try the current directory's config first
 	site := readStatichostSite(dir)
 	if site != "" {
 		return "https://" + site + ".statichost.page/"
-	}
-	// Try -docs sibling
-	parentDir := readParentRepo(dir)
-	if parentDir == "" {
-		// Not a docs repo; look for -docs sibling
-		absDir, err := filepath.Abs(dir)
-		if err != nil {
-			return ""
-		}
-		sibling := absDir + "-docs"
-		site = readStatichostSite(sibling)
-		if site != "" {
-			return "https://" + site + ".statichost.page/"
-		}
 	}
 	return ""
 }
