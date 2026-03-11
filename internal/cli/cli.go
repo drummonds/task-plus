@@ -11,12 +11,12 @@ import (
 
 	"github.com/drummonds/task-plus/internal/check"
 	"github.com/drummonds/task-plus/internal/claude"
+	"github.com/drummonds/task-plus/internal/combine"
 	"github.com/drummonds/task-plus/internal/config"
 	"github.com/drummonds/task-plus/internal/deploy"
 	"github.com/drummonds/task-plus/internal/forge"
 	"github.com/drummonds/task-plus/internal/git"
 	"github.com/drummonds/task-plus/internal/md2html"
-	"github.com/drummonds/task-plus/internal/migrate"
 	"github.com/drummonds/task-plus/internal/pages"
 	"github.com/drummonds/task-plus/internal/prompt"
 	"github.com/drummonds/task-plus/internal/readme"
@@ -47,7 +47,7 @@ var commands = []struct {
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
 	{"repos", "Manage git remotes for release (info, add, remove)"},
-	{"pages", "Serve docs/ directory over HTTP (subcommands: deploy, config, migrate)"},
+	{"pages", "Serve docs/ directory over HTTP (subcommands: deploy, config, combine)"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
 	{"readme", "Update auto-marker sections in README.md (links, version)"},
 	{"wt", "Manage git worktrees (start, agent, review, merge, clean, list, dashboard)"},
@@ -273,8 +273,8 @@ func runPages(args []string) {
 		case "config":
 			runPagesConfig(args[1:])
 			return
-		case "migrate":
-			runPagesMigrate(args[1:])
+		case "combine":
+			runPagesCombine(args[1:])
 			return
 		}
 	}
@@ -306,23 +306,6 @@ func runPages(args []string) {
 		os.Exit(1)
 	}
 
-	// Delegate to -docs sibling if this is not a docs project
-	if !cfg.IsDocs() {
-		if docsDir := cfg.ResolveDocsRepo(); docsDir != "" {
-			fmt.Printf("Delegating to %s\n", docsDir)
-			docsCfg, err := config.Load(docsDir)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading docs config: %v\n", err)
-				os.Exit(1)
-			}
-			if err := pages.Serve(docsDir, *port, docsCfg.PagesBuild); err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-				os.Exit(1)
-			}
-			return
-		}
-	}
-
 	if err := pages.Serve(absDir, *port, cfg.PagesBuild); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -345,19 +328,6 @@ func runPagesDeploy(args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
-	}
-
-	// Delegate to -docs sibling if this is not a docs project
-	if !cfg.IsDocs() {
-		if docsPath := cfg.ResolveDocsRepo(); docsPath != "" {
-			fmt.Printf("Delegating to %s\n", docsPath)
-			cfg, err = config.Load(docsPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading docs config: %v\n", err)
-				os.Exit(1)
-			}
-			absDir = docsPath
-		}
 	}
 
 	if !cfg.HasPagesDeploy() {
@@ -400,18 +370,6 @@ func runPagesConfig(args []string) {
 		os.Exit(1)
 	}
 
-	// Delegate to -docs sibling if this is not a docs project
-	if !cfg.IsDocs() {
-		if docsPath := cfg.ResolveDocsRepo(); docsPath != "" {
-			fmt.Printf("Using docs repo: %s\n", docsPath)
-			cfg, err = config.Load(docsPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading docs config: %v\n", err)
-				os.Exit(1)
-			}
-		}
-	}
-
 	if !cfg.HasPagesDeploy() {
 		fmt.Println("No pages_deploy targets configured.")
 		return
@@ -427,27 +385,17 @@ func runPagesConfig(args []string) {
 	}
 }
 
-func runPagesMigrate(args []string) {
-	// Check for "clean" subcommand
-	if len(args) > 0 && args[0] == "clean" {
-		absDir, err := filepath.Abs(".")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		if err := migrate.Clean(absDir); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
+func runPagesCombine(args []string) {
+	fs := flag.NewFlagSet("pages combine", flag.ExitOnError)
+	dir := fs.String("dir", ".", "project directory")
+	fs.Parse(args)
 
-	absDir, err := filepath.Abs(".")
+	absDir, err := filepath.Abs(*dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	if err := migrate.Run(absDir); err != nil {
+	if err := combine.Run(absDir); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

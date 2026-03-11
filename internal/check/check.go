@@ -314,113 +314,22 @@ func checkCrossRepo(dir string) []finding {
 	}
 
 	if cfg.IsDocs() {
-		// Running from a -docs repo — check parent
+		// Running from a -docs repo — suggest combining
+		findings = append(findings, finding{levelWarn, "Separate -docs repo detected — consider running 'tp pages combine' from the main project to consolidate"})
 		parentDir := cfg.ResolveParentRepo()
-		if parentDir == "" {
-			findings = append(findings, finding{levelWarn, "No parent repo found (expected sibling without -docs suffix)"})
-			return findings
+		if parentDir != "" {
+			findings = append(findings, finding{levelOK, fmt.Sprintf("Parent repo: %s", parentDir)})
 		}
-		findings = append(findings, finding{levelOK, fmt.Sprintf("Parent repo: %s", parentDir)})
-
-		parentCfg, err := config.Load(parentDir)
-		if err != nil {
-			findings = append(findings, finding{levelWarn, fmt.Sprintf("Cannot load parent config: %v", err)})
-			return findings
-		}
-		if config.HasDocsDir(parentDir) {
-			findings = append(findings, finding{levelWarn, "Parent repo still has docs/ — run 'tp pages migrate clean' from parent"})
-		}
-		if parentCfg.HasPagesDeploy() {
-			findings = append(findings, finding{levelWarn, "Parent repo still has pages_deploy — should be in -docs repo only"})
-		}
-		if parentCfg.HasPagesBuild() {
-			findings = append(findings, finding{levelWarn, "Parent repo still has pages_build — should be in -docs repo only"})
-		}
-
-		// Check for .md files without DOC- prefix in -docs repo
-		findings = append(findings, checkDocsMdPrefix(dir)...)
 	} else {
-		// Running from main repo — check for -docs sibling
+		// Running from main repo — check for leftover -docs sibling
 		docsDir := cfg.ResolveDocsRepo()
 		if docsDir == "" {
 			findings = append(findings, finding{levelOK, "No -docs sibling (integrated docs)"})
-			return findings
-		}
-		findings = append(findings, finding{levelOK, fmt.Sprintf("Docs repo: %s", docsDir)})
-
-		docsCfg, err := config.Load(docsDir)
-		if err != nil {
-			findings = append(findings, finding{levelError, fmt.Sprintf("Cannot load -docs config: %v", err)})
-			return findings
-		}
-		if docsCfg.Type != "docs" {
-			findings = append(findings, finding{levelError, fmt.Sprintf("-docs repo has type %q — expected 'docs'", docsCfg.Type)})
-		}
-		if config.HasDocsDir(dir) {
-			findings = append(findings, finding{levelWarn, "Main repo still has docs/ — run 'tp pages migrate clean'"})
-		}
-		if cfg.HasPagesDeploy() {
-			findings = append(findings, finding{levelWarn, "Main repo has pages_deploy — should be in -docs repo only"})
-		}
-		if cfg.HasPagesBuild() {
-			findings = append(findings, finding{levelWarn, "Main repo has pages_build — should be in -docs repo only"})
-		}
-
-		// Check docs repo has at least one git remote
-		docsRemotes, err := git.Remotes(docsDir)
-		if err != nil {
-			findings = append(findings, finding{levelWarn, fmt.Sprintf("Cannot list -docs remotes: %v", err)})
-		} else if len(docsRemotes) == 0 {
-			findings = append(findings, finding{levelError, "Docs repo has no git remotes — release will fail to push docs"})
-		} else if !git.HasRemote(docsDir, "origin") {
-			findings = append(findings, finding{levelWarn, "Docs repo has no 'origin' remote"})
 		} else {
-			findings = append(findings, finding{levelOK, "Docs repo has origin remote"})
+			findings = append(findings, finding{levelWarn, fmt.Sprintf("Separate -docs repo found: %s — run 'tp pages combine' to consolidate", docsDir)})
 		}
 	}
 
-	return findings
-}
-
-// checkDocsMdPrefix warns about .md files in a -docs repo root that lack the DOC- prefix.
-// Files like go.md, CHANGELOG.md etc. belong in the parent project; docs-repo markdown
-// should use DOC-README.md, DOC-CHANGELOG.md etc. to avoid confusion.
-func checkDocsMdPrefix(dir string) []finding {
-	var findings []finding
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return findings
-	}
-
-	// Allowlisted names that don't need the DOC- prefix.
-	allowed := map[string]bool{
-		"LICENSE.md": true,
-	}
-
-	var bad []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if !strings.HasSuffix(strings.ToLower(name), ".md") {
-			continue
-		}
-		if strings.HasPrefix(name, "DOC-") {
-			continue
-		}
-		if allowed[name] {
-			continue
-		}
-		bad = append(bad, name)
-	}
-	if len(bad) == 0 {
-		findings = append(findings, finding{levelOK, "All .md files use DOC- prefix"})
-	} else {
-		for _, name := range bad {
-			findings = append(findings, finding{levelWarn, fmt.Sprintf("%s should be renamed to DOC-%s (docs-repo convention)", name, name)})
-		}
-	}
 	return findings
 }
 
