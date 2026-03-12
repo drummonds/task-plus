@@ -156,7 +156,7 @@ func runAgent(args []string) error {
 
 	// Check worktree exists
 	if info, err := os.Stat(wtPath); err != nil || !info.IsDir() {
-		return fmt.Errorf("worktree not found at %s; run 'task-plus wt start --task=%s' first", wtPath, task)
+		return fmt.Errorf("worktree not found at %s; run 'task-plus wt start %s' first", wtPath, task)
 	}
 
 	// Clean stale agents
@@ -371,7 +371,9 @@ func runList(args []string) error {
 	return git(absDir, "worktree", "list")
 }
 
-// parseStartArgs extracts --task, --spec, --dir from args.
+// parseStartArgs extracts the task name, --spec, and --dir from args.
+// The task name can be given as a positional argument or via --task flag.
+// A "WT" prefix is automatically added if not already present.
 func parseStartArgs(args []string) (task, spec, dir string, err error) {
 	dir = "."
 	for i := 0; i < len(args); i++ {
@@ -391,10 +393,15 @@ func parseStartArgs(args []string) (task, spec, dir string, err error) {
 			i++
 		case strings.HasPrefix(args[i], "--dir="):
 			dir = args[i][len("--dir="):]
+		case !strings.HasPrefix(args[i], "-") && task == "":
+			task = args[i]
 		}
 	}
 	if task == "" {
-		return "", "", "", fmt.Errorf("--task is required\nUsage: task-plus wt agent --task=<name> --spec=\"<prompt>\"")
+		return "", "", "", fmt.Errorf("usage: task-plus wt agent <name> --spec=\"<prompt>\"")
+	}
+	if !strings.HasPrefix(task, wtPrefix) {
+		task = wtPrefix + task
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -403,7 +410,13 @@ func parseStartArgs(args []string) (task, spec, dir string, err error) {
 	return task, spec, absDir, nil
 }
 
-// parseTaskArgs extracts --task and --dir from args.
+// wtPrefix is automatically prepended to task names so worktree directories
+// (e.g. project-WTdemo) stand out from the main project directory.
+const wtPrefix = "WT"
+
+// parseTaskArgs extracts the task name and --dir from args.
+// The task name can be given as a positional argument or via --task flag.
+// A "WT" prefix is automatically added if not already present.
 func parseTaskArgs(args []string) (task, dir string, err error) {
 	dir = "."
 	for i := 0; i < len(args); i++ {
@@ -418,14 +431,19 @@ func parseTaskArgs(args []string) (task, dir string, err error) {
 			i++
 		case strings.HasPrefix(args[i], "--dir="):
 			dir = args[i][len("--dir="):]
+		case !strings.HasPrefix(args[i], "-") && task == "":
+			task = args[i]
 		}
 	}
 	if task == "" {
-		return "", "", fmt.Errorf("--task is required")
+		return "", "", fmt.Errorf("usage: task-plus wt <command> <name>")
 	}
 	lower := strings.ToLower(task)
 	if lower == "doc" || lower == "docs" {
 		return "", "", fmt.Errorf("task name %q is reserved — it clashes with the -docs repo convention", task)
+	}
+	if !strings.HasPrefix(task, wtPrefix) {
+		task = wtPrefix + task
 	}
 	absDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -590,8 +608,8 @@ func printInit() {
 	fmt.Print(`# Add these to your Taskfile.yml.
 # Requires task-plus to be installed.
 #
-# Usage:
-#   task wt:start TASK=my-feature
+# Usage (WT prefix is added automatically):
+#   task wt:start TASK=my-feature       -> worktree WTmy-feature
 #   task wt:agent TASK=my-feature SPEC="implement the login page"
 #   task wt:review TASK=my-feature
 #   task wt:merge TASK=my-feature
@@ -604,35 +622,35 @@ func printInit() {
     requires:
       vars: [TASK]
     cmds:
-      - task-plus wt start --task={{.TASK}}
+      - task-plus wt start {{.TASK}}
 
   wt:agent:
     desc: Run Claude agent in a worktree (registers with dashboard)
     requires:
       vars: [TASK, SPEC]
     cmds:
-      - task-plus wt agent --task={{.TASK}} --spec="{{.SPEC}}"
+      - task-plus wt agent {{.TASK}} --spec="{{.SPEC}}"
 
   wt:review:
     desc: Review changes in a worktree task
     requires:
       vars: [TASK]
     cmds:
-      - task-plus wt review --task={{.TASK}}
+      - task-plus wt review {{.TASK}}
 
   wt:merge:
     desc: Merge task branch and remove worktree
     requires:
       vars: [TASK]
     cmds:
-      - task-plus wt merge --task={{.TASK}}
+      - task-plus wt merge {{.TASK}}
 
   wt:clean:
     desc: Merge branch, remove worktree, close VS Code folder
     requires:
       vars: [TASK]
     cmds:
-      - task-plus wt clean --task={{.TASK}}
+      - task-plus wt clean {{.TASK}}
 
   wt:list:
     desc: List active worktrees
