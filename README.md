@@ -84,7 +84,7 @@ Flags:
 7. WASM build (if configured)
 8. Git push (branch + tags)
 9. Goreleaser (if binary project)
-10. Cleanup old GitHub releases
+10. Cleanup old releases (GitHub, Codeberg, GitLab)
 11. Local install
 12. Deploy documentation (if configured)
 13. Run `post:release` Taskfile task (if present)
@@ -204,6 +204,8 @@ check: [task check]     # commands to run first
 changelog_format: keepachangelog  # or "simple"
 wasm: []                # optional WASM build commands
 goreleaser_config: .goreleaser.yaml
+forge: github           # override auto-detected forge (github, gitlab, forgejo)
+release_remote: github  # remote for release cleanup (default: first in remotes)
 install: true           # auto-run "go install" (skip prompt; omit to be asked)
 cleanup:
   keep_patches: 2       # per minor version
@@ -216,6 +218,8 @@ pages_deploy:                   # deploy docs during release (multiple targets s
 ```
 
 All fields optional — sensible defaults are auto-detected.
+
+For Codeberg/Forgejo release cleanup, set `CODEBERG_APIKEY` in your environment.
 
 ### Documentation Deployment
 

@@ -2,6 +2,7 @@ package forge
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -19,22 +20,26 @@ const (
 // Forge holds the detected forge type for a repository.
 type Forge struct {
 	Type Type
+	URL  string // git remote URL used for API calls
 }
 
 // Detect determines the forge from a config override or the git remote URL.
 // The remote parameter specifies which git remote to inspect (e.g. "origin").
 func Detect(dir, remote, override string) (Forge, error) {
-	if override != "" {
-		return Forge{Type: Type(override)}, nil
-	}
 	cmd := exec.Command("git", "remote", "get-url", remote)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
-	if err != nil {
+	var url string
+	if err == nil {
+		url = strings.TrimSpace(string(out))
+	}
+	if override != "" {
+		return Forge{Type: Type(override), URL: url}, nil
+	}
+	if url == "" {
 		return Forge{Type: Unknown}, nil
 	}
-	url := strings.TrimSpace(string(out))
-	return Forge{Type: detectFromURL(url)}, nil
+	return Forge{Type: detectFromURL(url), URL: url}, nil
 }
 
 // DetectFromURL returns the forge type for a git remote URL. Exported for CLI use.
@@ -62,6 +67,40 @@ func extractHost(url string) string {
 	return url
 }
 
+// ExtractOwnerRepo parses a git remote URL and returns host, owner, and repo.
+// Supports SSH (git@host:owner/repo.git) and HTTPS (https://host/owner/repo.git).
+func ExtractOwnerRepo(url string) (host, owner, repo string) {
+	host = extractHost(url)
+	var path string
+	// SSH: git@host:owner/repo
+	if strings.HasPrefix(url, "git@") && !strings.Contains(url, "://") {
+		if _, rest, ok := strings.Cut(url[4:], ":"); ok {
+			path = rest
+		}
+	} else if strings.HasPrefix(url, "ssh://") {
+		// ssh://git@host/owner/repo
+		if _, rest, ok := strings.Cut(url, "://"); ok {
+			if hostPart, after, ok := strings.Cut(rest, "/"); ok {
+				if _, h, ok := strings.Cut(hostPart, "@"); ok {
+					host = h
+				}
+				path = after
+			}
+		}
+	} else if _, rest, ok := strings.Cut(url, "://"); ok {
+		// HTTPS: https://host/owner/repo
+		if _, after, ok := strings.Cut(rest, "/"); ok {
+			path = after
+		}
+	}
+	path = strings.TrimSuffix(path, ".git")
+	if o, r, ok := strings.Cut(path, "/"); ok {
+		owner = o
+		repo = r
+	}
+	return
+}
+
 // detectFromURL maps a git remote URL to a forge type.
 func detectFromURL(url string) Type {
 	host := strings.ToLower(extractHost(url))
@@ -87,9 +126,7 @@ func (f Forge) HasCLI() bool {
 		_, err := exec.LookPath("glab")
 		return err == nil
 	case Forgejo:
-		// TODO: forgejo-cli (fj) lacks release list/delete commands.
-		// Revisit when CLI support matures.
-		return false
+		return os.Getenv("CODEBERG_APIKEY") != ""
 	default:
 		return false
 	}
@@ -103,7 +140,7 @@ func (f Forge) ListReleases(dir string) ([]string, error) {
 	case GitLab:
 		return listReleasesGitLab(dir)
 	case Forgejo:
-		return nil, fmt.Errorf("forgejo release listing not yet supported")
+		return listReleasesForgejo(f.URL)
 	default:
 		return nil, fmt.Errorf("unknown forge type %q", f.Type)
 	}
@@ -117,7 +154,7 @@ func (f Forge) DeleteRelease(dir, tag string) error {
 	case GitLab:
 		return deleteReleaseGitLab(dir, tag)
 	case Forgejo:
-		return fmt.Errorf("forgejo release deletion not yet supported")
+		return deleteReleaseForgejo(f.URL, tag)
 	default:
 		return fmt.Errorf("unknown forge type %q", f.Type)
 	}

@@ -25,6 +25,7 @@ type Config struct {
 	Wasm             []string        `yaml:"wasm"`
 	GoreleaserConfig string          `yaml:"goreleaser_config"`
 	Forge            string          `yaml:"forge"`
+	ReleaseRemote    string          `yaml:"release_remote"`
 	Remotes          []string        `yaml:"remotes"`
 	Cleanup          CleanupConfig   `yaml:"cleanup"`
 	Fork             *bool           `yaml:"fork"`
@@ -446,4 +447,13 @@ func (c *Config) PrimaryRemote() string {
 		return "origin"
 	}
 	return c.Remotes[0]
+}
+
+// GetReleaseRemote returns the remote name used for forge release operations.
+// If release_remote is explicitly set, returns that. Otherwise falls back to PrimaryRemote().
+func (c *Config) GetReleaseRemote() string {
+	if c.ReleaseRemote != "" {
+		return c.ReleaseRemote
+	}
+	return c.PrimaryRemote()
 }

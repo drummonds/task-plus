@@ -227,6 +227,7 @@ func extractHTMLTitle(path, fallback string) string {
 }
 
 // discoverLinks auto-discovers project links from git remotes and task-plus.yml.
+// Orders: Documentation, then Sources (non-GitHub), then Mirrors (GitHub).
 func discoverLinks() []LinkInfo {
 	var links []LinkInfo
 
@@ -236,16 +237,29 @@ func discoverLinks() []LinkInfo {
 		links = append(links, LinkInfo{Label: "Documentation", URL: docURL})
 	}
 
+	type link struct{ label, url string }
+	var sources, mirrors []link
 	for _, name := range sortedKeys(cwdRemotes) {
 		webURL := git.URLToWeb(cwdRemotes[name])
 		if webURL == "" {
 			continue
 		}
-		label := "Source"
-		if len(cwdRemotes) > 1 {
-			label = "Source (" + name + ")"
+		switch {
+		case strings.Contains(webURL, "github.com"):
+			mirrors = append(mirrors, link{"Mirror (GitHub)", webURL})
+		default:
+			label := "Source"
+			if strings.Contains(webURL, "codeberg.org") {
+				label = "Source (Codeberg)"
+			}
+			sources = append(sources, link{label, webURL})
 		}
-		links = append(links, LinkInfo{Label: label, URL: webURL})
+	}
+	for _, l := range sources {
+		links = append(links, LinkInfo{Label: l.label, URL: l.url})
+	}
+	for _, l := range mirrors {
+		links = append(links, LinkInfo{Label: l.label, URL: l.url})
 	}
 
 	return links

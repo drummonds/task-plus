@@ -47,6 +47,7 @@ var knownConfigKeys = map[string]bool{
 	"wasm":              true,
 	"goreleaser_config": true,
 	"forge":             true,
+	"release_remote":    true,
 	"remotes":           true,
 	"cleanup":           true,
 	"fork":              true,

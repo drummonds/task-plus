@@ -54,6 +54,28 @@ func TestExtractHost(t *testing.T) {
 	}
 }
 
+func TestExtractOwnerRepo(t *testing.T) {
+	tests := []struct {
+		url              string
+		host, owner, repo string
+	}{
+		{"https://github.com/user/repo.git", "github.com", "user", "repo"},
+		{"git@github.com:user/repo.git", "github.com", "user", "repo"},
+		{"ssh://git@codeberg.org/hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
+		{"https://codeberg.org/hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
+		{"git@codeberg.org:hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
+		{"https://gitlab.com/group/project", "gitlab.com", "group", "project"},
+	}
+
+	for _, tt := range tests {
+		host, owner, repo := ExtractOwnerRepo(tt.url)
+		if host != tt.host || owner != tt.owner || repo != tt.repo {
+			t.Errorf("ExtractOwnerRepo(%q) = (%q, %q, %q), want (%q, %q, %q)",
+				tt.url, host, owner, repo, tt.host, tt.owner, tt.repo)
+		}
+	}
+}
+
 func TestParseGLabReleaseList(t *testing.T) {
 	output := `v0.3.0    Release 0.3.0    2024-01-15T10:00:00Z
 v0.2.1    Bug fix release  2024-01-10T10:00:00Z

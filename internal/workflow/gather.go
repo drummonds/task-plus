@@ -117,8 +117,8 @@ func Gather(ctx *Context) error {
 		p.HasGoreleaserCfg = true
 	}
 
-	// Detect forge from primary remote; check CLI availability for release cleanup.
-	f, err := forge.Detect(ctx.Config.Dir, ctx.Config.PrimaryRemote(), ctx.Config.Forge)
+	// Detect forge from release remote; check CLI/API availability for release cleanup.
+	f, err := forge.Detect(ctx.Config.Dir, ctx.Config.GetReleaseRemote(), ctx.Config.Forge)
 	if err != nil {
 		return fmt.Errorf("detecting forge: %w", err)
 	}

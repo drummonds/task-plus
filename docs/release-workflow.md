@@ -63,7 +63,7 @@ Read-only state probing:
 - Suggested next version (auto-incremented, skipping retracted)
 - Fork detection (go.mod vs git remote)
 - Goreleaser config detection
-- Forge detection (GitHub/Gitea) and release cleanup candidates
+- Forge detection (GitHub/GitLab/Forgejo) and release cleanup candidates
 
 ### 3. Ask
 Interactive prompts:

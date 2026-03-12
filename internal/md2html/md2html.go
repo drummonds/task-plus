@@ -38,6 +38,7 @@ type breadcrumb struct {
 type pageData struct {
 	Title       string
 	Project     string
+	RootURL     string
 	Content     template.HTML
 	Breadcrumbs []breadcrumb
 	HasMermaid  bool
@@ -120,16 +121,20 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 
 	rootURL := docsRootURL(cfg.Dst)
 
+	// Breadcrumbs: category + page title only (project name is in the navbar)
+	var crumbs []breadcrumb
+	if cfg.Label != "" {
+		crumbs = append(crumbs, breadcrumb{Label: cfg.Label, URL: ""})
+	}
+	crumbs = append(crumbs, breadcrumb{Label: title, URL: ""})
+
 	data := pageData{
-		Title:   title,
-		Project: cfg.Project,
-		Content: template.HTML(rendered),
-		Breadcrumbs: []breadcrumb{
-			{Label: cfg.Project, URL: rootURL},
-			{Label: cfg.Label, URL: ""},
-			{Label: title, URL: ""},
-		},
-		HasMermaid: hasMermaid,
+		Title:       title,
+		Project:     cfg.Project,
+		RootURL:     rootURL,
+		Content:     template.HTML(rendered),
+		Breadcrumbs: crumbs,
+		HasMermaid:  hasMermaid,
 	}
 
 	var out bytes.Buffer
@@ -166,6 +171,7 @@ func docsRootURL(dst string) string {
 		}
 		dir = filepath.Dir(dir)
 	}
+	fmt.Fprintf(os.Stderr, "Warning: no index.html found in %s or parent directories\n", dst)
 	return "index.html"
 }
 

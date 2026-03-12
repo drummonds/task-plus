@@ -33,6 +33,10 @@ func Serve(dir string, port int, buildCmds []string) error {
 		return fmt.Errorf("docs/ directory not found in %s", dir)
 	}
 
+	if _, err := os.Stat(filepath.Join(docsDir, "index.html")); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Warning: docs/ has no index.html — pages will serve a directory listing\n")
+	}
+
 	handler := http.FileServer(http.Dir(docsDir))
 
 	for p := port; p <= maxPort; p++ {
