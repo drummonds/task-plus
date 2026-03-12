@@ -56,7 +56,7 @@ func TestExtractHost(t *testing.T) {
 
 func TestExtractOwnerRepo(t *testing.T) {
 	tests := []struct {
-		url              string
+		url               string
 		host, owner, repo string
 	}{
 		{"https://github.com/user/repo.git", "github.com", "user", "repo"},
