@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.51] - 2026-03-12
+
+ - Adding combine
+
 ## [0.1.50] - 2026-03-11
 
  - Adding dual tagging
