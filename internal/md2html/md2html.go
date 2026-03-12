@@ -14,24 +14,23 @@ import (
 	"strings"
 
 	"github.com/drummonds/task-plus/internal/git"
+	"github.com/drummonds/task-plus/internal/readme"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
 )
 
-//go:embed template.html index.html
+//go:embed template.html
 var templateFS embed.FS
 
 // Config holds the parameters for a conversion run.
 type Config struct {
-	Src      string // source markdown directory
-	Dst      string // destination HTML directory
-	Label    string // breadcrumb label for this doc set
-	Project  string // project name for breadcrumb root
-	File     string // single file to convert (overrides Src directory scan)
-	Index    bool   // generate index.html listing all pages
-	Subtitle string // subtitle for the index page
+	Src     string // source markdown directory
+	Dst     string // destination HTML directory
+	Label   string // breadcrumb label for this doc set
+	Project string // project name for breadcrumb root
+	File    string // single file to convert (overrides Src directory scan)
 }
 
 // pageInfo holds metadata about a converted page for the index.
@@ -64,10 +63,6 @@ func Run(cfg Config) error {
 	if cfg.Project == "" {
 		cfg.Project = detectProject()
 	}
-	if cfg.Subtitle == "" {
-		cfg.Subtitle = "Documentation"
-	}
-
 	tmplBytes, err := templateFS.ReadFile("template.html")
 	if err != nil {
 		return fmt.Errorf("read template: %w", err)
@@ -98,32 +93,16 @@ func Run(cfg Config) error {
 	}
 
 	// Convert .md files from Src directory.
-	converted := make(map[string]pageInfo) // filename -> info
 	entries, err := os.ReadDir(cfg.Src)
-	if err != nil && !cfg.Index {
-		// If --index only (no src to read), that's fine.
+	if err != nil {
 		return fmt.Errorf("read %s: %w", cfg.Src, err)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		if entry.Name() == "_index.md" {
-			continue
-		}
-		info, err := convertFile(md, tmpl, cfg, entry.Name())
-		if err != nil {
+		if _, err := convertFile(md, tmpl, cfg, entry.Name()); err != nil {
 			return fmt.Errorf("convert %s: %w", entry.Name(), err)
-		}
-		converted[info.Filename] = info
-	}
-
-	if cfg.Index {
-		// Scan --dst for all .html files, merging with just-converted pages.
-		pages := scanDstPages(cfg.Dst, converted)
-		links := discoverLinks()
-		if err := generateIndex(md, cfg, pages, links); err != nil {
-			return fmt.Errorf("generate index: %w", err)
 		}
 	}
 
@@ -134,6 +113,18 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 	content, err := os.ReadFile(filepath.Join(cfg.Src, name))
 	if err != nil {
 		return pageInfo{}, err
+	}
+
+	// Process auto-markers before goldmark conversion.
+	if bytes.Contains(content, []byte("<!-- auto:")) {
+		s := string(content)
+		if updated, ok := readme.ReplaceSection(s, "pages", GeneratePagesTable(cfg.Dst)); ok {
+			s = updated
+		}
+		if updated, ok := readme.ReplaceSection(s, "links", GenerateLinksTable()); ok {
+			s = updated
+		}
+		content = []byte(s)
 	}
 
 	title := extractTitle(content, name)
@@ -177,59 +168,32 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 	return pageInfo{Title: title, Filename: outName}, nil
 }
 
-// indexData holds the template data for the index page.
-type indexData struct {
-	Project  string
-	Subtitle string
-	Intro    template.HTML
-	Pages    []pageInfo
-	Links    []LinkInfo
+// GeneratePagesTable returns a markdown table of all .html pages in dst.
+func GeneratePagesTable(dst string) string {
+	pages := scanDstPages(dst, nil)
+	if len(pages) == 0 {
+		return "\n"
+	}
+	var sb strings.Builder
+	sb.WriteString("\n| Page | File |\n|------|------|\n")
+	for _, p := range pages {
+		sb.WriteString("| [" + p.Title + "](" + p.Filename + ") | `" + p.Filename + "` |\n")
+	}
+	return sb.String()
 }
 
-// generateIndex creates an index.html listing all converted pages.
-func generateIndex(md goldmark.Markdown, cfg Config, pages []pageInfo, links []LinkInfo) error {
-	idxBytes, err := templateFS.ReadFile("index.html")
-	if err != nil {
-		return fmt.Errorf("read index template: %w", err)
+// GenerateLinksTable returns a markdown table of auto-discovered links.
+func GenerateLinksTable() string {
+	links := discoverLinks()
+	if len(links) == 0 {
+		return "\n"
 	}
-	idxTmpl, err := template.New("index").Parse(string(idxBytes))
-	if err != nil {
-		return fmt.Errorf("parse index template: %w", err)
+	var sb strings.Builder
+	sb.WriteString("\n| | |\n|---|---|\n")
+	for _, l := range links {
+		sb.WriteString("| " + l.Label + " | " + l.URL + " |\n")
 	}
-
-	// Render optional _index.md intro content.
-	// Look in both --dst and --src (--dst first, since that's where docs live).
-	var intro template.HTML
-	for _, dir := range []string{cfg.Dst, cfg.Src} {
-		introPath := filepath.Join(dir, "_index.md")
-		if introContent, err := os.ReadFile(introPath); err == nil {
-			var buf bytes.Buffer
-			if err := md.Convert(introContent, &buf); err == nil {
-				intro = template.HTML(buf.String())
-			}
-			break
-		}
-	}
-
-	data := indexData{
-		Project:  cfg.Project,
-		Subtitle: cfg.Subtitle,
-		Intro:    intro,
-		Pages:    pages,
-		Links:    links,
-	}
-
-	var out bytes.Buffer
-	if err := idxTmpl.Execute(&out, data); err != nil {
-		return fmt.Errorf("template: %w", err)
-	}
-
-	outPath := filepath.Join(cfg.Dst, "index.html")
-	if err := os.WriteFile(outPath, out.Bytes(), 0o644); err != nil {
-		return err
-	}
-	fmt.Printf("index -> %s\n", outPath)
-	return nil
+	return sb.String()
 }
 
 // scanDstPages scans the destination directory for .html files, merging with

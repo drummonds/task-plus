@@ -33,7 +33,7 @@ tasks:
       - task-plus md2html --src docs --dst docs
       - task-plus md2html --file README.md --dst docs
       - task-plus md2html --file ROADMAP.md --dst docs
-      - task-plus md2html --dst docs --index --project task-plus
+      - task-plus md2html --file docs/index.md --dst docs
 
   clean:
     cmds:
