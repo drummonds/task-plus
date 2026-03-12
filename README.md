@@ -2,7 +2,7 @@
 
 Go CLI tool that standardizes common development workflows across repositories. Subcommand architecture — start with `release`, more commands to come.
 
-<!-- auto:version -->Latest: v0.1.51<!-- /auto:version -->
+<!-- auto:version -->Latest: v0.1.52<!-- /auto:version -->
 
 Try https://h3-task-plus.statichost.page/ for documentation.
 
@@ -127,25 +127,13 @@ Flags (serve mode):
 
 ### `tp md2html`
 
-Converts markdown files to Bulma-styled HTML pages with breadcrumb navigation. Supports `<!-- auto:pages -->` and `<!-- auto:links -->` markers in any `.md` file — the content between markers is replaced with auto-generated tables before conversion.
-
-```bash
-tp md2html                                    # convert docs/internal/*.md in place
-tp md2html --src docs/api --dst docs/api      # custom directories
-tp md2html --file README.md --dst docs/       # single file
-tp md2html --file docs/index.md --dst docs    # index with auto-expanded markers
-```
-
-Flags:
-- `--src <dir>` — source markdown directory (default: `docs/internal`)
-- `--dst <dir>` — destination HTML directory (default: `docs/internal`)
-- `--label <text>` — breadcrumb label (default: `Internal Docs`)
-- `--project <name>` — project name (auto-detected from go.mod)
-- `--file <path>` — single file to convert (overrides `--src`)
-
-Auto-markers (placed in any `.md` file):
-- `<!-- auto:pages -->...<!-- /auto:pages -->` — replaced with a table of all `.html` files in `--dst`
-- `<!-- auto:links -->...<!-- /auto:links -->` — replaced with auto-discovered project links (git remotes, statichost)
+Converts markdown files to Bulma-styled HTML pages with breadcrumb navigation. Supports `<!-- auto:pages -->` and `<!-- auto:links -->
+| | |
+|---|---|
+| Documentation | https://h3-task-plus.statichost.page/ |
+| Source (Codeberg) | https://codeberg.org/hum3/task-plus |
+| Mirror (GitHub) | https://github.com/drummonds/task-plus |
+<!-- /auto:links -->` — replaced with auto-discovered project links (git remotes, statichost)
 
 Typical docs repo Taskfile pattern — convert `index.md` last so `auto:pages` sees all HTML files:
 
