@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.56] - 2026-03-12
+
+ - adding release to codeberg
+
 ## [0.1.55] - 2026-03-12
 
  - Adding pyproject.toml update on release
