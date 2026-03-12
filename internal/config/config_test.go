@@ -395,6 +395,52 @@ func TestPypiPackageNameWrongSection(t *testing.T) {
 	}
 }
 
+func TestUpdatePyprojectVersion(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname = \"my-pkg\"\nversion = \"0.1.0\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	if err := cfg.UpdatePyprojectVersion("0.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "pyproject.toml"))
+	if got := string(data); got != "[project]\nname = \"my-pkg\"\nversion = \"0.2.0\"\n" {
+		t.Errorf("got:\n%s", got)
+	}
+}
+
+func TestUpdatePyprojectVersionNoEquals(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname=\"my-pkg\"\nversion=\"0.1.0\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	if err := cfg.UpdatePyprojectVersion("1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(filepath.Join(dir, "pyproject.toml"))
+	if got := string(data); got != "[project]\nname=\"my-pkg\"\nversion = \"1.0.0\"\n" {
+		t.Errorf("got:\n%s", got)
+	}
+}
+
+func TestUpdatePyprojectVersionWrongSection(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[tool.poetry]\nversion = \"0.1.0\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	err := cfg.UpdatePyprojectVersion("0.2.0")
+	if err == nil {
+		t.Error("expected error for version in wrong section")
+	}
+}
+
+func TestUpdatePyprojectVersionMissing(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname = \"my-pkg\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	err := cfg.UpdatePyprojectVersion("0.2.0")
+	if err == nil {
+		t.Error("expected error for missing version field")
+	}
+}
+
 func TestLoadYAML(t *testing.T) {
 	dir := t.TempDir()
 	yaml := `type: binary

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/drummonds/task-plus/internal/deploy"
 	"gopkg.in/yaml.v3"
@@ -367,6 +368,51 @@ func (c *Config) PypiPackageName() string {
 		}
 	}
 	return ""
+}
+
+// UpdatePyprojectVersion updates the version field in pyproject.toml under [project].
+// The version string should NOT have a "v" prefix (Python convention).
+func (c *Config) UpdatePyprojectVersion(ver string) error {
+	path := filepath.Join(c.Dir, "pyproject.toml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	lines := splitLines(string(data))
+	inProject := false
+	found := false
+	for i, line := range lines {
+		trimmed := line
+		for len(trimmed) > 0 && (trimmed[0] == ' ' || trimmed[0] == '\t') {
+			trimmed = trimmed[1:]
+		}
+		if trimmed == "[project]" {
+			inProject = true
+			continue
+		}
+		if len(trimmed) > 0 && trimmed[0] == '[' {
+			inProject = false
+			continue
+		}
+		if inProject && (len(trimmed) > 9 && trimmed[:8] == "version " || len(trimmed) > 8 && trimmed[:8] == "version=") {
+			// Preserve leading whitespace
+			indent := line[:len(line)-len(trimmed)]
+			lines[i] = indent + `version = "` + ver + `"`
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("no version field found in [project] section of pyproject.toml")
+	}
+	return os.WriteFile(path, []byte(joinLines(lines)), 0644)
+}
+
+func joinLines(lines []string) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // HasPagesBuild returns true if page build steps are configured.

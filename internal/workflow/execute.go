@@ -128,6 +128,28 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		}
 	}
 
+	// 4a. Update pyproject.toml version (if Python project)
+	if ctx.Config.HasPython() && ctx.Config.HasPyproject() {
+		pyVer := p.Version.TagString() // no "v" prefix
+		fmt.Printf("  Updating pyproject.toml version to %s\n", pyVer)
+		if ctx.DryRun {
+			fmt.Printf("  (dry-run) Would update pyproject.toml version to %s\n", pyVer)
+		} else {
+			if err := ctx.Config.UpdatePyprojectVersion(pyVer); err != nil {
+				return fmt.Errorf("updating pyproject.toml: %w", err)
+			}
+			clean, _ := git.IsClean(ctx.Config.Dir)
+			if !clean {
+				if err := git.AddAll(ctx.Config.Dir); err != nil {
+					return err
+				}
+				if err := git.Commit(ctx.Config.Dir, fmt.Sprintf("Update pyproject.toml version to %s", pyVer)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	// 4b. Update README.md auto-marker sections (if markers present)
 	fmt.Println("  Updating README.md markers...")
 	if ctx.DryRun {

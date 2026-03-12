@@ -226,6 +226,14 @@ func checkConfig(dir string) []finding {
 		}
 	}
 
+	// Reverse check: marker files exist but language not listed
+	if cfg.HasPyproject() && !cfg.HasPython() {
+		findings = append(findings, finding{levelWarn, "pyproject.toml found but 'python' not in languages"})
+	}
+	if cfg.HasGoMod() && !cfg.HasGo() {
+		findings = append(findings, finding{levelWarn, "go.mod found but 'go' not in languages"})
+	}
+
 	// Validate changelog_format
 	switch cfg.ChangelogFormat {
 	case "keepachangelog", "simple":
