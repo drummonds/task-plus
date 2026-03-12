@@ -2,7 +2,7 @@
 
 Go CLI tool that standardizes common development workflows across repositories. Subcommand architecture — start with `release`, more commands to come.
 
-<!-- auto:version -->Latest: v0.1.50<!-- /auto:version -->
+<!-- auto:version -->Latest: v0.1.51<!-- /auto:version -->
 
 Try https://h3-task-plus.statichost.page/ for documentation.
 
@@ -251,5 +251,4 @@ pages_deploy:
 | Documentation | https://h3-task-plus.statichost.page/ |
 | Source (Codeberg) | https://codeberg.org/hum3/task-plus |
 | Mirror (GitHub) | https://github.com/drummonds/task-plus |
-| Docs repo | https://codeberg.org/hum3/task-plus-docs |
 <!-- /auto:links -->
