@@ -81,14 +81,19 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		}
 	}
 
-	// 2. Git commit
+	// 2. Git commit (skip if nothing staged after add)
 	if p.DoGitAdd && p.GitDirty {
-		fmt.Printf("  Git commit: %q\n", p.CommitMsg)
-		if ctx.DryRun {
-			fmt.Printf("  (dry-run) Would commit: %q\n", p.CommitMsg)
+		clean, _ := git.IsClean(ctx.Config.Dir)
+		if clean {
+			fmt.Println("  Nothing to commit, continuing with release.")
 		} else {
-			if err := git.Commit(ctx.Config.Dir, p.CommitMsg); err != nil {
-				return err
+			fmt.Printf("  Git commit: %q\n", p.CommitMsg)
+			if ctx.DryRun {
+				fmt.Printf("  (dry-run) Would commit: %q\n", p.CommitMsg)
+			} else {
+				if err := git.Commit(ctx.Config.Dir, p.CommitMsg); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -180,11 +185,14 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		if err := changelog.Update(ctx.Config.Dir, p.Version.TagString(), ctx.Config.ChangelogFormat, p.Comment); err != nil {
 			return err
 		}
-		if err := git.AddAll(ctx.Config.Dir); err != nil {
-			return err
-		}
-		if err := git.Commit(ctx.Config.Dir, fmt.Sprintf("Update CHANGELOG for %s", p.Version)); err != nil {
-			return err
+		clean, _ := git.IsClean(ctx.Config.Dir)
+		if !clean {
+			if err := git.AddAll(ctx.Config.Dir); err != nil {
+				return err
+			}
+			if err := git.Commit(ctx.Config.Dir, fmt.Sprintf("Update CHANGELOG for %s", p.Version)); err != nil {
+				return err
+			}
 		}
 	}
 
