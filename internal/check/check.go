@@ -316,6 +316,13 @@ func checkTaskfile(dir string) []finding {
 		}
 	}
 
+	// Check .gitignore includes .task/ (taskfile checksum cache)
+	if gitignoreContains(dir, ".task") {
+		findings = append(findings, finding{levelOK, ".task/ in .gitignore"})
+	} else {
+		findings = append(findings, finding{levelWarn, ".task/ not in .gitignore — add '.task' to avoid committing checksum cache"})
+	}
+
 	return findings
 }
 
@@ -544,6 +551,22 @@ func extractRedirectTarget(content string) string {
 		rest = rest[:end]
 	}
 	return rest
+}
+
+// gitignoreContains returns true if .gitignore contains a line matching the pattern.
+func gitignoreContains(dir, pattern string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		// Match ".task", ".task/", ".task/*" etc.
+		if line == pattern || line == pattern+"/" {
+			return true
+		}
+	}
+	return false
 }
 
 func printDeploy(dir string) {

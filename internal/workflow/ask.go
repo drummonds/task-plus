@@ -37,7 +37,15 @@ func Ask(ctx *Context) error {
 			return fmt.Errorf("aborted by user")
 		}
 		p.DoGitAdd = true
-		p.CommitMsg = prompt.AskStringOrAuto("Commit message", "Release prep")
+		// Default commit message: --comment flag > .tp-release-comment file > "Release prep"
+		commitDefault := "Release prep"
+		if saved, _ := releasecomment.Read(ctx.Config.Dir); saved != "" {
+			commitDefault = saved
+		}
+		if ctx.Comment != "" {
+			commitDefault = ctx.Comment
+		}
+		p.CommitMsg = prompt.AskStringOrAuto("Commit message", commitDefault)
 	} else {
 		fmt.Println("  Working tree clean.")
 	}
@@ -49,10 +57,13 @@ func Ask(ctx *Context) error {
 		return err
 	}
 	p.Version = v
-	// Default release comment: --comment flag > .tp-release-comment file > commit msg
-	commentDefault := p.CommitMsg
+	// Default release comment: --comment flag > commit msg > .tp-release-comment
+	commentDefault := ""
 	if saved, _ := releasecomment.Read(ctx.Config.Dir); saved != "" {
 		commentDefault = saved
+	}
+	if p.CommitMsg != "" {
+		commentDefault = p.CommitMsg
 	}
 	if ctx.Comment != "" {
 		commentDefault = ctx.Comment

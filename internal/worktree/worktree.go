@@ -269,6 +269,11 @@ func runMerge(args []string) error {
 	wtPath := worktreePath(dir, projName, task)
 	branch := "task/" + task
 
+	// Check for uncommitted changes before merging
+	if dirty, _ := isDirty(dir); dirty {
+		return fmt.Errorf("working tree has uncommitted changes — commit or discard them before merge")
+	}
+
 	// Capture last commit subject before merging
 	commitMsg := lastCommitSubject(dir, branch)
 
@@ -316,6 +321,11 @@ func runClean(args []string) error {
 	if !prompt.Confirm("Proceed?") {
 		fmt.Println("Aborted.")
 		return nil
+	}
+
+	// Check for uncommitted changes before merging
+	if dirty, _ := isDirty(dir); dirty {
+		return fmt.Errorf("working tree has uncommitted changes — commit or discard them before merge")
 	}
 
 	// Capture last commit subject before merging
@@ -475,6 +485,16 @@ func git(dir string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// isDirty returns true if the working tree has uncommitted changes.
+func isDirty(dir string) (bool, error) {
+	cmd := exec.Command("git", "-C", dir, "status", "--porcelain")
+	out, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return len(out) > 0, nil
 }
 
 func writeSettings(wtPath string) error {
