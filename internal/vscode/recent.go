@@ -41,7 +41,7 @@ func RemoveFromRecent(folderPath string) error {
 	if err != nil {
 		return fmt.Errorf("open state.vscdb: %w", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	const key = "history.recentlyOpenedPathsList"
 
