@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.62] - 2026-03-15
+
+ - getting linter to pass
+
 ## [0.1.61] - 2026-03-14
 
  - fixing nothing to commit causing failures
