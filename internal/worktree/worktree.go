@@ -256,6 +256,10 @@ func runReview(args []string) error {
 }
 
 func runMerge(args []string) error {
+	if err := rejectIfInsideWorktree(); err != nil {
+		return err
+	}
+
 	task, dir, err := parseTaskArgs(args)
 	if err != nil {
 		return err
@@ -297,6 +301,10 @@ func runMerge(args []string) error {
 }
 
 func runClean(args []string) error {
+	if err := rejectIfInsideWorktree(); err != nil {
+		return err
+	}
+
 	task, dir, err := parseTaskArgs(args)
 	if err != nil {
 		return err
@@ -493,6 +501,28 @@ func git(dir string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// rejectIfInsideWorktree returns an error if cwd is inside a git worktree
+// (as opposed to the main working tree). This prevents commands like clean
+// and merge from operating on the tree they're standing in.
+func rejectIfInsideWorktree() error {
+	gitDir, err := exec.Command("git", "rev-parse", "--git-dir").Output()
+	if err != nil {
+		return nil // not a git repo — let later commands handle it
+	}
+	commonDir, err := exec.Command("git", "rev-parse", "--git-common-dir").Output()
+	if err != nil {
+		return nil
+	}
+	gd := strings.TrimSpace(string(gitDir))
+	cd := strings.TrimSpace(string(commonDir))
+	// In the main working tree these are equal (both ".git"); in a worktree
+	// git-dir points to .git/worktrees/<name> while common-dir points to .git.
+	if gd != cd {
+		return fmt.Errorf("refusing to run inside a worktree — switch to the main project directory first")
+	}
+	return nil
 }
 
 // isDirty returns true if the working tree has uncommitted changes.

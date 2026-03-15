@@ -380,8 +380,9 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		deployDir := ctx.Config.Dir
 		deployCfg := ctx.Config
 
-		// Check for -docs sibling
-		if !ctx.Config.IsDocs() {
+		// Check for -docs sibling, but only when the main project
+		// doesn't have its own pages_build config.
+		if !ctx.Config.IsDocs() && !ctx.Config.HasPagesBuild() {
 			if docsRepoDir := ctx.Config.ResolveDocsRepo(); docsRepoDir != "" {
 				fmt.Printf("  Using docs repo: %s\n", docsRepoDir)
 				docsCfg, err := config.Load(docsRepoDir)

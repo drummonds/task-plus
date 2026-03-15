@@ -112,9 +112,10 @@ func Ask(ctx *Context) error {
 		}
 	}
 
-	// Deploy — check both local config and -docs sibling
+	// Deploy — check both local config and -docs sibling (skip sibling
+	// when main project has its own pages_build)
 	deployCfg := ctx.Config
-	if !ctx.Config.IsDocs() {
+	if !ctx.Config.IsDocs() && !ctx.Config.HasPagesBuild() {
 		if docsDir := ctx.Config.ResolveDocsRepo(); docsDir != "" {
 			if dc, err := config.Load(docsDir); err == nil {
 				deployCfg = dc

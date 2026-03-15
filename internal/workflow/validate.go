@@ -21,9 +21,11 @@ func validateDeploy(ctx *Context) error {
 	deployDir := ctx.Config.Dir
 	deployCfg := ctx.Config
 
-	// Resolve -docs sibling (same logic as Execute)
-	if !ctx.Config.IsDocs() {
+	// Resolve -docs sibling (same logic as Execute), but only when
+	// the main project doesn't have its own pages_build config.
+	if !ctx.Config.IsDocs() && !ctx.Config.HasPagesBuild() {
 		if docsRepoDir := ctx.Config.ResolveDocsRepo(); docsRepoDir != "" {
+			fmt.Printf("  Using docs repo: %s\n", docsRepoDir)
 			docsCfg, err := config.Load(docsRepoDir)
 			if err != nil {
 				return fmt.Errorf("loading docs config: %w", err)
@@ -60,7 +62,7 @@ func validateDeploy(ctx *Context) error {
 			c.Stdout = os.Stdout
 			c.Stderr = os.Stderr
 			if err := c.Run(); err != nil {
-				return fmt.Errorf("docs build pre-check failed: %w", err)
+				return fmt.Errorf("docs build pre-check failed (in %s): %w", deployDir, err)
 			}
 		}
 	}
