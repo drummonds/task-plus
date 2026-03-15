@@ -2,7 +2,7 @@ dist/
 .claude/settings.json
 .vscode
 
-# Generated documenentation
+# Generated documentation
 docs/*.html
 
 # task-plus
