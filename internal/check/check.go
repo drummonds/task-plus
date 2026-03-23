@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,6 +64,7 @@ var knownConfigKeys = map[string]bool{
 	"install":           true,
 	"install_retries":   true,
 	"languages":         true,
+	"linter":            true,
 	"pages_build":       true,
 	"pages_deploy":      true,
 	"docs_repo":         true,
@@ -261,6 +263,16 @@ func checkConfig(dir string) []finding {
 		}
 	}
 
+	// Validate linter override (if explicitly set)
+	if cfg.Linter != "" {
+		switch cfg.Linter {
+		case "staticcheck", "golangci-lint":
+			findings = append(findings, finding{levelOK, fmt.Sprintf("Linter: %s", cfg.Linter)})
+		default:
+			findings = append(findings, finding{levelError, fmt.Sprintf("Invalid linter %q (expected: staticcheck, golangci-lint)", cfg.Linter)})
+		}
+	}
+
 	// Check for unsupported md2html flags in pages_build
 	findings = append(findings, checkMd2htmlFlags(dir, "task-plus.yml")...)
 
@@ -334,12 +346,34 @@ func checkTaskfile(dir string) []finding {
 		}
 	}
 
-	// Check Go projects have a lint task using golangci-lint
+	// Check Go projects have a lint task and detect linter tool
 	if cfg != nil && cfg.HasGo() {
+		taskfileData, _ := os.ReadFile(filepath.Join(dir, "Taskfile.yml"))
 		if config.HasTaskfileTask(dir, "lint") {
-			findings = append(findings, finding{levelOK, "lint task found (golangci-lint)"})
+			switch {
+			case taskfileData != nil && taskContains(taskfileData, "lint", "golangci-lint"):
+				findings = append(findings, finding{levelOK, "lint task uses golangci-lint"})
+			case taskfileData != nil && taskContains(taskfileData, "lint", "staticcheck"):
+				if cfg.Linter == "staticcheck" {
+					findings = append(findings, finding{levelOK, "lint task uses staticcheck (override)"})
+				} else {
+					findings = append(findings, finding{levelWarn, "lint uses staticcheck — migrate to golangci-lint (wraps staticcheck + more; https://golangci-lint.run/)"})
+				}
+			default:
+				findings = append(findings, finding{levelOK, "lint task found"})
+			}
 		} else {
 			findings = append(findings, finding{levelWarn, "Go project missing 'lint' task — add golangci-lint (https://golangci-lint.run/)"})
+		}
+
+		// Check Go 1.26+ projects include 'go fix' in fmt task
+		major, minor, ok := readGoVersion(dir)
+		if ok && (major > 1 || (major == 1 && minor >= 26)) {
+			if taskfileData != nil && taskContains(taskfileData, "fmt", "go fix") {
+				findings = append(findings, finding{levelOK, "fmt task includes go fix"})
+			} else {
+				findings = append(findings, finding{levelWarn, "Go 1.26+ project — add 'go fix ./...' to fmt task"})
+			}
 		}
 	}
 
@@ -800,6 +834,73 @@ func checkFavicon(dir string) []finding {
 	}
 
 	return findings
+}
+
+// taskContains reports whether the named task's block in Taskfile data
+// contains substr anywhere in its indented lines.
+func taskContains(data []byte, taskName string, substr string) bool {
+	prefix := "  " + taskName + ":"
+	lines := strings.Split(string(data), "\n")
+	inTasks := false
+	inTarget := false
+	for _, line := range lines {
+		if line == "tasks:" {
+			inTasks = true
+			continue
+		}
+		if inTasks && len(line) > 0 && line[0] != ' ' && line[0] != '\t' {
+			inTasks = false
+			inTarget = false
+		}
+		if !inTasks {
+			continue
+		}
+		if !inTarget {
+			if len(line) >= len(prefix) && line[:len(prefix)] == prefix {
+				if len(line) == len(prefix) || line[len(prefix)] == ' ' {
+					inTarget = true
+				}
+			}
+			continue
+		}
+		// A line at exactly 2-space indent starts a new task
+		if len(line) >= 3 && line[0] == ' ' && line[1] == ' ' && line[2] != ' ' && line[2] != '\t' {
+			return false
+		}
+		if strings.Contains(line, substr) {
+			return true
+		}
+	}
+	return false
+}
+
+// readGoVersion extracts the major.minor Go version from go.mod in dir.
+func readGoVersion(dir string) (major, minor int, ok bool) {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return 0, 0, false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "go ") {
+			continue
+		}
+		ver := strings.TrimPrefix(line, "go ")
+		parts := strings.SplitN(ver, ".", 3)
+		if len(parts) < 2 {
+			return 0, 0, false
+		}
+		m, err := strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, 0, false
+		}
+		n, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return 0, 0, false
+		}
+		return m, n, true
+	}
+	return 0, 0, false
 }
 
 func printDeploy(dir string) {

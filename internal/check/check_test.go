@@ -385,6 +385,187 @@ func TestCheckGoModule_NotGoProject(t *testing.T) {
 	}
 }
 
+func TestCheckTaskfile_LintGolangciLint(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  lint:\n    cmds:\n      - golangci-lint run ./...\n  fmt:\n    cmds: [echo]\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.25.3\n"), 0644)
+	findings := checkTaskfile(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelOK && f.message == "lint task uses golangci-lint" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected golangci-lint OK, got %v", findings)
+	}
+}
+
+func TestCheckTaskfile_LintStaticcheck_Warn(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  lint:\n    cmds:\n      - staticcheck ./...\n  fmt:\n    cmds: [echo]\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.25.3\n"), 0644)
+	findings := checkTaskfile(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelWarn && f.message == "lint uses staticcheck — migrate to golangci-lint (wraps staticcheck + more; https://golangci-lint.run/)" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected staticcheck warning, got %v", findings)
+	}
+}
+
+func TestCheckTaskfile_LintStaticcheck_Override(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  lint:\n    cmds:\n      - staticcheck ./...\n  fmt:\n    cmds: [echo]\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\nlinter: staticcheck\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.25.3\n"), 0644)
+	findings := checkTaskfile(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelOK && f.message == "lint task uses staticcheck (override)" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected staticcheck override OK, got %v", findings)
+	}
+}
+
+func TestCheckTaskfile_GoFix_Present(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  fmt:\n    cmds:\n      - go fmt ./...\n      - go fix ./...\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.26.0\n"), 0644)
+	findings := checkTaskfile(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelOK && f.message == "fmt task includes go fix" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected go fix OK, got %v", findings)
+	}
+}
+
+func TestCheckTaskfile_GoFix_Missing(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  fmt:\n    cmds:\n      - go fmt ./...\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.26.0\n"), 0644)
+	findings := checkTaskfile(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelWarn && f.message == "Go 1.26+ project — add 'go fix ./...' to fmt task" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected go fix warning, got %v", findings)
+	}
+}
+
+func TestCheckTaskfile_GoFix_NotNeeded_OlderGo(t *testing.T) {
+	dir := t.TempDir()
+	taskfile := "version: '3'\ntasks:\n  fmt:\n    cmds:\n      - go fmt ./...\n  vet:\n    cmds: [echo]\n  test:\n    cmds: [echo]\n  check:\n    cmds: [echo]\n"
+	_ = os.WriteFile(filepath.Join(dir, "Taskfile.yml"), []byte(taskfile), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [go]\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/test\n\ngo 1.25.3\n"), 0644)
+	findings := checkTaskfile(dir)
+	for _, f := range findings {
+		if f.message == "Go 1.26+ project — add 'go fix ./...' to fmt task" {
+			t.Error("should not warn about go fix for Go < 1.26")
+		}
+		if f.message == "fmt task includes go fix" {
+			t.Error("should not report go fix OK for Go < 1.26")
+		}
+	}
+}
+
+func TestReadGoVersion(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "go.mod")
+
+	_ = os.WriteFile(path, []byte("module example.com/test\n\ngo 1.25.3\n"), 0644)
+	major, minor, ok := readGoVersion(dir)
+	if !ok || major != 1 || minor != 25 {
+		t.Errorf("got %d.%d (ok=%v), want 1.25", major, minor, ok)
+	}
+
+	_ = os.WriteFile(path, []byte("module example.com/test\n\ngo 1.26.0\n"), 0644)
+	major, minor, ok = readGoVersion(dir)
+	if !ok || major != 1 || minor != 26 {
+		t.Errorf("got %d.%d (ok=%v), want 1.26", major, minor, ok)
+	}
+
+	// No go.mod
+	noDir := t.TempDir()
+	_, _, ok = readGoVersion(noDir)
+	if ok {
+		t.Error("expected ok=false for missing go.mod")
+	}
+}
+
+func TestTaskContains(t *testing.T) {
+	data := []byte("version: '3'\ntasks:\n  lint:\n    cmds:\n      - golangci-lint run ./...\n  fmt:\n    cmds:\n      - go fmt ./...\n")
+
+	if !taskContains(data, "lint", "golangci-lint") {
+		t.Error("expected lint to contain golangci-lint")
+	}
+	if taskContains(data, "lint", "staticcheck") {
+		t.Error("lint should not contain staticcheck")
+	}
+	if !taskContains(data, "fmt", "go fmt") {
+		t.Error("expected fmt to contain go fmt")
+	}
+	if taskContains(data, "fmt", "golangci-lint") {
+		t.Error("fmt should not contain golangci-lint")
+	}
+	if taskContains(data, "nonexistent", "anything") {
+		t.Error("nonexistent task should not match")
+	}
+}
+
+func TestCheckConfig_LinterOverride(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("linter: staticcheck\n"), 0644)
+	findings := checkConfig(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelOK && f.message == "Linter: staticcheck" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected linter OK, got %v", findings)
+	}
+}
+
+func TestCheckConfig_LinterInvalid(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("linter: bogus\n"), 0644)
+	findings := checkConfig(dir)
+	found := false
+	for _, f := range findings {
+		if f.level == levelError && f.message == `Invalid linter "bogus" (expected: staticcheck, golangci-lint)` {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected linter error, got %v", findings)
+	}
+}
+
 // roundTripFunc adapts a function to http.RoundTripper.
 type roundTripFunc func(*http.Request) (*http.Response, error)
 

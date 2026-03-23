@@ -19,6 +19,7 @@ type CleanupConfig struct {
 type Config struct {
 	Type             string          `yaml:"type"`
 	Languages        []string        `yaml:"languages"`
+	Linter           string          `yaml:"linter"`
 	Precheck         []string        `yaml:"precheck"`
 	Check            []string        `yaml:"check"`
 	ChangelogFormat  string          `yaml:"changelog_format"`
