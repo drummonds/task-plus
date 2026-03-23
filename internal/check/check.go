@@ -562,7 +562,7 @@ func checkWorktrees(dir string) []finding {
 		return findings
 	}
 
-	findings = append(findings, finding{levelOK, fmt.Sprintf("%d worktrees:", len(worktrees))})
+	findings = append(findings, finding{levelWarn, fmt.Sprintf("%d worktrees:", len(worktrees))})
 	for _, w := range worktrees {
 		label := w.branch
 		if label == "" {
