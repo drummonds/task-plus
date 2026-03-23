@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.68] - 2026-03-23
+
+ - adding check for multiple work trees
+
 ## [0.1.67] - 2026-03-22
 
  - Adding rc setup
