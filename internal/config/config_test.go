@@ -533,6 +533,45 @@ func TestPagesDeployNoRCSite(t *testing.T) {
 	}
 }
 
+func TestReadPyprojectVersion(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname = \"my-pkg\"\nversion = \"0.3.0\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	got := cfg.ReadPyprojectVersion()
+	if got != "0.3.0" {
+		t.Errorf("got %q, want %q", got, "0.3.0")
+	}
+}
+
+func TestReadPyprojectVersion_NoEquals(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname=\"my-pkg\"\nversion=\"1.2.3\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	got := cfg.ReadPyprojectVersion()
+	if got != "1.2.3" {
+		t.Errorf("got %q, want %q", got, "1.2.3")
+	}
+}
+
+func TestReadPyprojectVersion_WrongSection(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[tool.poetry]\nversion = \"0.1.0\"\n"), 0644)
+	cfg := &Config{Dir: dir}
+	got := cfg.ReadPyprojectVersion()
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
+func TestReadPyprojectVersion_Missing(t *testing.T) {
+	dir := t.TempDir()
+	cfg := &Config{Dir: dir}
+	got := cfg.ReadPyprojectVersion()
+	if got != "" {
+		t.Errorf("got %q, want empty", got)
+	}
+}
+
 func TestLoadYAML(t *testing.T) {
 	dir := t.TempDir()
 	yaml := `type: binary

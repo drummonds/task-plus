@@ -90,6 +90,15 @@ func PushTo(dir, remote string) error {
 	return err
 }
 
+// RemoteTagExists checks whether a tag exists on a specific remote.
+func RemoteTagExists(dir, remote, tag string) (bool, error) {
+	out, err := Run(dir, "ls-remote", "--tags", remote, tag)
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) != "", nil
+}
+
 // RemoteURL returns the URL for the named git remote.
 func RemoteURL(dir, remote string) (string, error) {
 	return Run(dir, "remote", "get-url", remote)

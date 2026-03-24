@@ -4,9 +4,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
+
+var versionHeadingRe = regexp.MustCompile(`^## \[?(\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?)\]?`)
+
+// LatestVersion extracts the latest version string from CHANGELOG.md.
+// Returns the version without "v" prefix, or "" if not found.
+func LatestVersion(dir string) string {
+	data, err := os.ReadFile(filepath.Join(dir, changelogFile))
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if m := versionHeadingRe.FindStringSubmatch(line); m != nil {
+			return m[1]
+		}
+	}
+	return ""
+}
 
 const changelogFile = "CHANGELOG.md"
 

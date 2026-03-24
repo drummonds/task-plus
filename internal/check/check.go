@@ -10,10 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"codeberg.org/hum3/task-plus/internal/changelog"
 	"codeberg.org/hum3/task-plus/internal/config"
 	"codeberg.org/hum3/task-plus/internal/favicon"
 	"codeberg.org/hum3/task-plus/internal/forge"
 	"codeberg.org/hum3/task-plus/internal/git"
+	"codeberg.org/hum3/task-plus/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -145,6 +147,7 @@ func Run(dir string, verbose bool) error {
 		{"Taskfile.yml", checkTaskfile(dir)},
 		{"Go module", checkGoModule(dir)},
 		{"Remotes", checkRemotes(dir)},
+		checkVersionSection(dir),
 		{"Cross-repo", checkCrossRepo(dir)},
 		{"Worktrees", checkWorktrees(dir)},
 		{"GitHub Pages", checkGitHubPages(dir)},
@@ -834,6 +837,109 @@ func checkFavicon(dir string) []finding {
 	}
 
 	return findings
+}
+
+// checkVersionSection checks version consistency across changelog, local tags,
+// remote tags, and pyproject.toml. Returns a section with the version in the
+// name when all sources agree.
+func checkVersionSection(dir string) section {
+	var findings []finding
+
+	cfg, _ := config.Load(dir)
+
+	// 1. Local tags
+	tags, err := git.Tags(dir)
+	if err != nil {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("Cannot read git tags: %v", err)})
+		return section{"Version", findings}
+	}
+	latest, hasTag := version.LatestFromTags(tags)
+
+	// 2. Changelog
+	clVer := changelog.LatestVersion(dir)
+
+	// 3. pyproject.toml (Python only)
+	var pyVer string
+	if cfg != nil && cfg.HasPython() {
+		pyVer = cfg.ReadPyprojectVersion()
+	}
+
+	// If no version sources exist at all, that's fine
+	if !hasTag && clVer == "" && pyVer == "" {
+		findings = append(findings, finding{levelOK, "No version tags or changelog entries found"})
+		return section{"Version", findings}
+	}
+
+	// Determine the canonical version (latest tag wins, fall back to changelog)
+	var canonical string
+	if hasTag {
+		canonical = latest.TagString()
+	} else if clVer != "" {
+		canonical = clVer
+	} else {
+		canonical = pyVer
+	}
+
+	// Compare each source against canonical
+	allMatch := true
+
+	if hasTag {
+		findings = append(findings, finding{levelOK, fmt.Sprintf("local tag: v%s", latest.TagString())})
+	} else {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("no local tag for %s", canonical)})
+		allMatch = false
+	}
+
+	if clVer != "" {
+		if clVer == canonical {
+			findings = append(findings, finding{levelOK, fmt.Sprintf("changelog: %s", clVer)})
+		} else {
+			findings = append(findings, finding{levelError, fmt.Sprintf("changelog (%s) != latest tag (v%s)", clVer, canonical)})
+			allMatch = false
+		}
+	} else {
+		if _, err := os.Stat(filepath.Join(dir, "CHANGELOG.md")); err == nil {
+			findings = append(findings, finding{levelWarn, "CHANGELOG.md has no version entries"})
+			allMatch = false
+		}
+	}
+
+	if pyVer != "" {
+		if pyVer == canonical {
+			findings = append(findings, finding{levelOK, fmt.Sprintf("pyproject.toml: %s", pyVer)})
+		} else {
+			findings = append(findings, finding{levelError, fmt.Sprintf("pyproject.toml (%s) != latest tag (v%s)", pyVer, canonical)})
+			allMatch = false
+		}
+	}
+
+	// 4. Remote tags
+	if cfg != nil && hasTag {
+		tagName := latest.String() // "vX.Y.Z"
+		for _, remote := range cfg.Remotes {
+			if !git.HasRemote(dir, remote) {
+				continue
+			}
+			exists, err := git.RemoteTagExists(dir, remote, tagName)
+			if err != nil {
+				findings = append(findings, finding{levelWarn, fmt.Sprintf("%s: cannot check remote tags: %v", remote, err)})
+				allMatch = false
+				continue
+			}
+			if exists {
+				findings = append(findings, finding{levelOK, fmt.Sprintf("%s: %s", remote, tagName)})
+			} else {
+				findings = append(findings, finding{levelWarn, fmt.Sprintf("%s: missing %s", remote, tagName)})
+				allMatch = false
+			}
+		}
+	}
+
+	name := "Version"
+	if allMatch && canonical != "" {
+		name = fmt.Sprintf("Version (v%s)", canonical)
+	}
+	return section{name, findings}
 }
 
 // taskContains reports whether the named task's block in Taskfile data

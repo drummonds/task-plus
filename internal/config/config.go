@@ -372,6 +372,51 @@ func (c *Config) PypiPackageName() string {
 	return ""
 }
 
+// ReadPyprojectVersion reads the version from pyproject.toml's [project] section.
+// Returns the version without "v" prefix, or "" if not found.
+func (c *Config) ReadPyprojectVersion() string {
+	data, err := os.ReadFile(filepath.Join(c.Dir, "pyproject.toml"))
+	if err != nil {
+		return ""
+	}
+	inProject := false
+	for _, line := range splitLines(string(data)) {
+		trimmed := line
+		for len(trimmed) > 0 && (trimmed[0] == ' ' || trimmed[0] == '\t') {
+			trimmed = trimmed[1:]
+		}
+		if trimmed == "[project]" {
+			inProject = true
+			continue
+		}
+		if len(trimmed) > 0 && trimmed[0] == '[' {
+			inProject = false
+			continue
+		}
+		if inProject && len(trimmed) > 8 && (trimmed[:8] == "version " || trimmed[:8] == "version=") {
+			idx := 0
+			for idx < len(trimmed) && trimmed[idx] != '=' {
+				idx++
+			}
+			if idx >= len(trimmed) {
+				continue
+			}
+			val := trimmed[idx+1:]
+			for len(val) > 0 && (val[0] == ' ' || val[0] == '\t') {
+				val = val[1:]
+			}
+			if len(val) >= 2 && val[0] == '"' {
+				end := 1
+				for end < len(val) && val[end] != '"' {
+					end++
+				}
+				return val[1:end]
+			}
+		}
+	}
+	return ""
+}
+
 // UpdatePyprojectVersion updates the version field in pyproject.toml under [project].
 // The version string should NOT have a "v" prefix (Python convention).
 func (c *Config) UpdatePyprojectVersion(ver string) error {

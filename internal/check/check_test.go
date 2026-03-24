@@ -3,7 +3,9 @@ package check
 import (
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -533,6 +535,139 @@ func TestTaskContains(t *testing.T) {
 	}
 	if taskContains(data, "nonexistent", "anything") {
 		t.Error("nonexistent task should not match")
+	}
+}
+
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	cmds := [][]string{
+		{"git", "init"},
+		{"git", "config", "user.email", "test@test.com"},
+		{"git", "config", "user.name", "Test"},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+	}
+}
+
+func gitCommitAndTag(t *testing.T, dir, tag string) {
+	t.Helper()
+	// Need at least one commit for the tag
+	f := filepath.Join(dir, tag+".txt")
+	_ = os.WriteFile(f, []byte(tag), 0644)
+	cmds := [][]string{
+		{"git", "add", "-A"},
+		{"git", "commit", "-m", "release " + tag},
+		{"git", "tag", "-a", tag, "-m", tag},
+	}
+	for _, args := range cmds {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%v: %s", err, out)
+		}
+	}
+}
+
+func TestCheckVersionSection_AllMatch(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	gitCommitAndTag(t, dir, "v0.1.5")
+
+	// Changelog matches
+	_ = os.WriteFile(filepath.Join(dir, "CHANGELOG.md"), []byte("# Changelog\n\n## [0.1.5] - 2026-03-23\n"), 0644)
+
+	s := checkVersionSection(dir)
+	if !strings.Contains(s.name, "v0.1.5") {
+		t.Errorf("section name %q should contain version", s.name)
+	}
+	for _, f := range s.findings {
+		if f.level == levelError {
+			t.Errorf("unexpected error: %s", f.message)
+		}
+	}
+}
+
+func TestCheckVersionSection_ChangelogMismatch(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	gitCommitAndTag(t, dir, "v0.1.5")
+
+	// Changelog has different version
+	_ = os.WriteFile(filepath.Join(dir, "CHANGELOG.md"), []byte("# Changelog\n\n## [0.1.4] - 2026-03-20\n"), 0644)
+
+	s := checkVersionSection(dir)
+	hasError := false
+	for _, f := range s.findings {
+		if f.level == levelError && strings.Contains(f.message, "changelog") {
+			hasError = true
+		}
+	}
+	if !hasError {
+		t.Errorf("expected changelog mismatch error, got %v", s.findings)
+	}
+}
+
+func TestCheckVersionSection_NoTags(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	// Need at least one commit
+	_ = os.WriteFile(filepath.Join(dir, "dummy.txt"), []byte("x"), 0644)
+	cmd := exec.Command("git", "add", "-A")
+	cmd.Dir = dir
+	_ = cmd.Run()
+	cmd = exec.Command("git", "commit", "-m", "init")
+	cmd.Dir = dir
+	_ = cmd.Run()
+
+	s := checkVersionSection(dir)
+	if s.name != "Version" {
+		t.Errorf("section name %q, want %q", s.name, "Version")
+	}
+}
+
+func TestCheckVersionSection_PyprojectMatch(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	gitCommitAndTag(t, dir, "v0.2.0")
+
+	_ = os.WriteFile(filepath.Join(dir, "CHANGELOG.md"), []byte("# Changelog\n\n## [0.2.0] - 2026-03-23\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname = \"mypkg\"\nversion = \"0.2.0\"\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [python]\n"), 0644)
+
+	s := checkVersionSection(dir)
+	if !strings.Contains(s.name, "v0.2.0") {
+		t.Errorf("section name %q should contain version", s.name)
+	}
+	for _, f := range s.findings {
+		if f.level == levelError {
+			t.Errorf("unexpected error: %s", f.message)
+		}
+	}
+}
+
+func TestCheckVersionSection_PyprojectMismatch(t *testing.T) {
+	dir := t.TempDir()
+	initGitRepo(t, dir)
+	gitCommitAndTag(t, dir, "v0.2.0")
+
+	_ = os.WriteFile(filepath.Join(dir, "CHANGELOG.md"), []byte("# Changelog\n\n## [0.2.0] - 2026-03-23\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte("[project]\nname = \"mypkg\"\nversion = \"0.1.0\"\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("languages: [python]\n"), 0644)
+
+	s := checkVersionSection(dir)
+	hasError := false
+	for _, f := range s.findings {
+		if f.level == levelError && strings.Contains(f.message, "pyproject.toml") {
+			hasError = true
+		}
+	}
+	if !hasError {
+		t.Errorf("expected pyproject mismatch error, got %v", s.findings)
 	}
 }
 
