@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.70] - 2026-03-24
+
+ - Add version management
+
 ## [0.1.69] - 2026-03-23
 
  - adding better lint check
