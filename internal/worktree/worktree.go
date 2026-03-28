@@ -92,7 +92,22 @@ func Run(args []string) error {
 
 // runStart creates (or resumes) a worktree and opens VS Code in it.
 // It does not run claude or register with the agent dashboard.
+// If /c is appended (e.g. "wt start xxx /c"), delegates to runClean.
 func runStart(args []string) error {
+	// Check for /c shorthand — delegates to clean
+	filtered := make([]string, 0, len(args))
+	clean := false
+	for _, a := range args {
+		if a == "/c" {
+			clean = true
+		} else {
+			filtered = append(filtered, a)
+		}
+	}
+	if clean {
+		return runClean(filtered)
+	}
+
 	task, dir, err := parseTaskArgs(args)
 	if err != nil {
 		return err
