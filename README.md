@@ -1,6 +1,6 @@
 # task-plus
 
-Go CLI tool that standardizes common development workflows across repositories. Subcommand architecture — start with `release`, more commands to come.
+Go CLI tool that standardizes common development workflows across repositories.
 
 <!-- auto:version -->Latest: v0.1.71<!-- /auto:version -->
 
@@ -160,14 +160,15 @@ tp md_update --dst docs docs/index.md   # explicit pages directory
 
 ### `tp wt`
 
-Manage git worktrees for running Claude tasks in isolation. Each worktree gets its own branch (`task/<name>`), sandbox settings, and VS Code configuration.
+Manage git worktrees for running Claude tasks in isolation. Each worktree gets its own branch (`task/<name>`), sandbox settings, and VS Code configuration. Task names are auto-prefixed with `WT` (e.g. `demo` → `WTdemo`, worktree dir `project-WTdemo`).
 
 ```bash
-tp wt start --task=my-feature      # create worktree, open as VS Code workspace folder
-tp wt agent --task=my-feature --spec="implement login"  # register agent + run claude
-tp wt review --task=my-feature     # diff task branch against main
-tp wt merge --task=my-feature      # merge branch and remove worktree
-tp wt clean --task=my-feature      # merge, close VS Code, remove from recent list, clean up
+tp wt start my-feature             # create worktree, open as VS Code workspace folder
+tp wt start my-feature /c          # shorthand: create, work, then clean up (delegates to wt clean)
+tp wt agent my-feature --spec="implement login"  # register agent + run claude
+tp wt review my-feature            # diff task branch against main
+tp wt merge my-feature             # merge branch and remove worktree
+tp wt clean my-feature             # merge, close VS Code, remove from recent list, clean up
 tp wt list                         # list active worktrees
 tp wt dashboard                    # agent dashboard (web UI; --term for terminal)
 tp wt --init                       # print Taskfile snippets for wt: tasks

@@ -4,18 +4,20 @@ task-plus manages git worktrees so you can run multiple Claude agents in paralle
 
 ## Quick Start
 
+Task names are auto-prefixed with `WT` (e.g. `add-login` → `WTadd-login`, worktree dir `my-app-WTadd-login`).
+
 ```bash
 # One-off: generate Taskfile snippets
 task-plus wt --init
 
 # Create a worktree and open VS Code in it
-task-plus wt start --task=add-login
+task-plus wt start add-login
 
 # In the VS Code terminal, run claude interactively (with safety checks)
 task-plus claude
 
 # Or run a headless agent for the dashboard
-task-plus wt agent --task=add-login --spec="implement the login page"
+task-plus wt agent add-login --spec="implement the login page"
 
 # Monitor all running agents
 task-plus wt dashboard          # web UI (default)
@@ -24,11 +26,13 @@ task-plus wt dashboard --term   # terminal table
 
 ## Typical Workflow
 
-1. **`task-plus wt start --task=add-login`** — creates a worktree and opens VS Code in it
+1. **`task-plus wt start add-login`** — creates a worktree and opens VS Code in it
 2. **In the VS Code terminal: `task-plus claude`** — verifies worktree sandbox is active (restricts access to ~/.ssh, ~/.aws, etc.), then runs `claude --dangerously-skip-permissions`
 3. Work interactively with Claude in the sandboxed worktree
-4. **`task-plus wt review --task=add-login`** — review the diff
-5. **`task-plus wt merge --task=add-login`** — merge and clean up
+4. **`task-plus wt review add-login`** — review the diff
+5. **`task-plus wt merge add-login`** — merge and clean up
+
+Or use the `/c` shorthand to create and clean up in one flow: **`task-plus wt start add-login /c`**
 
 For headless/automated use, `wt agent` registers with the dashboard instead.
 
@@ -63,11 +67,12 @@ flowchart TD
 
 | Command | Description |
 |---------|-------------|
-| `wt start --task=NAME` | Create or resume a worktree, open VS Code |
-| `wt agent --task=NAME [--spec="PROMPT"]` | Run Claude agent in worktree (registers with dashboard) |
-| `wt review --task=NAME` | Show diff between main and the task branch |
-| `wt merge --task=NAME` | Merge task branch into current branch, remove worktree |
-| `wt clean --task=NAME` | Merge branch, close VS Code folder, remove from recent list, remove worktree, delete branch |
+| `wt start NAME` | Create or resume a worktree, open VS Code |
+| `wt start NAME /c` | Shorthand: delegates to `wt clean NAME` |
+| `wt agent NAME [--spec="PROMPT"]` | Run Claude agent in worktree (registers with dashboard) |
+| `wt review NAME` | Show diff between main and the task branch |
+| `wt merge NAME` | Merge task branch into current branch, remove worktree |
+| `wt clean NAME` | Merge branch, close VS Code folder, remove from recent list, remove worktree, delete branch |
 | `wt list` | List all git worktrees |
 | `wt dashboard [--term]` | Live dashboard of running agents |
 | `wt --init` | Print Taskfile.yml snippets for all wt commands |
@@ -97,7 +102,7 @@ Stale entries (dead PIDs) are cleaned automatically on every `wt agent`.
 
 ## Resume Support
 
-If you run `wt start --task=add-login` and the worktree directory already exists, it resumes instead of failing with "branch already exists". This handles:
+If you run `wt start add-login` and the worktree directory already exists, it resumes instead of failing with "branch already exists". This handles:
 - Machine reboots
 - Interrupted sessions
 - Re-running a task after reviewing changes
@@ -114,13 +119,13 @@ Both modes show: task key, branch, status (Running/Idle/Offline), last commit su
 
 ## Directory Layout
 
-Worktrees are placed alongside the main repo:
+Worktrees are placed alongside the main repo (names include the `WT` prefix):
 
 ```
 ~/projects/
   my-app/              # main repo
-  my-app-add-login/    # worktree for task "add-login"
-  my-app-fix-bug/      # worktree for task "fix-bug"
+  my-app-WTadd-login/  # worktree for task "add-login"
+  my-app-WTfix-bug/    # worktree for task "fix-bug"
 ```
 
 Each worktree gets a `.claude/settings.json` with sandbox config (denies `~/.ssh` and `~/.aws` reads). Sandbox stub files are excluded via `.git/info/exclude`.
