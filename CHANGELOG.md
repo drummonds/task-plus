@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.74] - 2026-03-31
+
+ - Create tp symlink after release install
+
 ## [0.1.73] - 2026-03-31
 
  - Implement issues #9, #11, #12: pypi config, RC tags, install verification
