@@ -30,6 +30,7 @@ type Config struct {
 	Remotes          []string        `yaml:"remotes"`
 	Cleanup          CleanupConfig   `yaml:"cleanup"`
 	Fork             *bool           `yaml:"fork"`
+	Pypi             *bool           `yaml:"pypi"`
 	Install          *bool           `yaml:"install"`
 	InstallRetries   int             `yaml:"install_retries"`
 	PagesBuild       []string        `yaml:"pages_build"`

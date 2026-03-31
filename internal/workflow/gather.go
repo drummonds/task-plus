@@ -79,30 +79,48 @@ func Gather(ctx *Context) error {
 		p.SuggestedVersion = version.Version{Major: 0, Minor: 1, Patch: 0}
 	}
 
-	// Fork detection: compare go.mod module path vs primary remote
-	if ctx.Config.Fork != nil {
-		p.IsFork = *ctx.Config.Fork
+	// RC mode: suggest next rcN for the suggested version
+	if ctx.RC {
+		p.SuggestedVersion = p.SuggestedVersion.BumpRC(tags)
+		// Skip fork detection in RC mode
+	} else if ctx.Promote {
+		// Promote mode: find latest RC tag and derive final version
+		rc, rcFound := version.LatestRCFromTags(tags, p.SuggestedVersion.Base())
+		if !rcFound && found {
+			// Try with the suggested version's base
+			rc, rcFound = version.LatestRCFromTags(tags, p.SuggestedVersion.Base())
+		}
+		if !rcFound {
+			return fmt.Errorf("no RC tags found to promote — run 'tp release --rc' first")
+		}
+		p.LatestRC = rc
+		p.SuggestedVersion = rc.Base()
 	} else {
-		modPath, err := version.ModulePath(ctx.Config.Dir)
-		if err == nil {
-			remotePath, err := version.GitRemoteModulePath(ctx.Config.Dir, ctx.Config.PrimaryRemote())
-			if err == nil && remotePath != "" && remotePath != modPath {
-				p.IsFork = true
+		// Fork detection: compare go.mod module path vs primary remote
+		if ctx.Config.Fork != nil {
+			p.IsFork = *ctx.Config.Fork
+		} else {
+			modPath, err := version.ModulePath(ctx.Config.Dir)
+			if err == nil {
+				remotePath, err := version.GitRemoteModulePath(ctx.Config.Dir, ctx.Config.PrimaryRemote())
+				if err == nil && remotePath != "" && remotePath != modPath {
+					p.IsFork = true
+				}
 			}
 		}
-	}
-	if p.IsFork {
-		branch, err := git.CurrentBranch(ctx.Config.Dir)
-		if err != nil {
-			return fmt.Errorf("getting current branch: %w", err)
+		if p.IsFork {
+			branch, err := git.CurrentBranch(ctx.Config.Dir)
+			if err != nil {
+				return fmt.Errorf("getting current branch: %w", err)
+			}
+			p.ForkBranch = branch
+			// Suggest pre-release version based on latest tag + branch name
+			base := p.SuggestedVersion.Base()
+			if found {
+				base = latest
+			}
+			p.SuggestedVersion = base.BumpPrerelease(branch, tags)
 		}
-		p.ForkBranch = branch
-		// Suggest pre-release version based on latest tag + branch name
-		base := p.SuggestedVersion.Base()
-		if found {
-			base = latest
-		}
-		p.SuggestedVersion = base.BumpPrerelease(branch, tags)
 	}
 
 	// Taskfile release:version-update task?

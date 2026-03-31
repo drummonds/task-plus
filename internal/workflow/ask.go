@@ -15,6 +15,11 @@ func Ask(ctx *Context) error {
 	p := &ctx.Plan
 
 	// Status summary
+	if ctx.RC {
+		fmt.Println("  Mode: release candidate (RC)")
+	} else if ctx.Promote {
+		fmt.Printf("  Mode: promote RC %s → %s\n", p.LatestRC, p.SuggestedVersion)
+	}
 	if len(ctx.Config.Languages) > 0 {
 		fmt.Printf("  Languages: %s\n", strings.Join(ctx.Config.Languages, ", "))
 	}
@@ -81,60 +86,67 @@ func Ask(ctx *Context) error {
 	}
 	p.DoPush = prompt.ConfirmOrAuto(pushPrompt)
 
-	// Goreleaser
-	if ctx.Config.IsBinary() && p.HasGoreleaserCfg {
-		p.DoGoreleaser = prompt.ConfirmOrAuto("Run goreleaser?")
-	}
-
-	// PyPI publish
-	if ctx.Config.HasPython() {
-		name := ctx.Config.PypiPackageName()
-		if name != "" {
-			p.DoPublishPyPI = prompt.ConfirmOrAuto(fmt.Sprintf("Publish %s to PyPI?", name))
+	// RC mode skips post-release steps (goreleaser, PyPI, cleanup, install, deploy)
+	if !ctx.RC {
+		// Goreleaser
+		if ctx.Config.IsBinary() && p.HasGoreleaserCfg {
+			p.DoGoreleaser = prompt.ConfirmOrAuto("Run goreleaser?")
 		}
-	}
 
-	// Cleanup
-	if len(p.ReleasesToDelete) > 0 {
-		fmt.Printf("  Will delete %d old %s release(s):\n", len(p.ReleasesToDelete), p.Forge.Type)
-		for _, d := range p.ReleasesToDelete {
-			fmt.Printf("    - %s (%s)\n", d.Tag, d.Reason)
-		}
-		p.DoCleanup = prompt.ConfirmOrAuto("Delete these releases?")
-	}
-
-	// Install (binary projects or custom release:install task)
-	if ctx.Config.IsBinary() || p.HasReleaseInstall {
-		if ctx.Config.Install != nil {
-			p.DoInstall = *ctx.Config.Install
-		} else {
-			p.DoInstall = prompt.ConfirmOrAuto("Install locally (go install)?")
-		}
-	}
-
-	// Deploy — check both local config and -docs sibling (skip sibling
-	// when main project has its own pages_build)
-	deployCfg := ctx.Config
-	if !ctx.Config.IsDocs() && !ctx.Config.HasPagesBuild() {
-		if docsDir := ctx.Config.ResolveDocsRepo(); docsDir != "" {
-			if dc, err := config.Load(docsDir); err == nil {
-				deployCfg = dc
+		// PyPI publish (skip if pypi: false in config)
+		if ctx.Config.HasPython() && (ctx.Config.Pypi == nil || *ctx.Config.Pypi) {
+			name := ctx.Config.PypiPackageName()
+			if name != "" {
+				if ctx.Config.Pypi != nil && *ctx.Config.Pypi {
+					p.DoPublishPyPI = true
+				} else {
+					p.DoPublishPyPI = prompt.ConfirmOrAuto(fmt.Sprintf("Publish %s to PyPI?", name))
+				}
 			}
 		}
-	}
-	if deployCfg.HasPagesDeploy() {
-		fmt.Printf("  Deploy targets:")
-		for _, t := range deployCfg.PagesDeploy {
-			fmt.Printf(" %s", t.Type)
-			if t.Site != "" {
-				fmt.Printf("(%s)", t.Site)
+
+		// Cleanup
+		if len(p.ReleasesToDelete) > 0 {
+			fmt.Printf("  Will delete %d old %s release(s):\n", len(p.ReleasesToDelete), p.Forge.Type)
+			for _, d := range p.ReleasesToDelete {
+				fmt.Printf("    - %s (%s)\n", d.Tag, d.Reason)
 			}
-			if t.HasRCSite() {
-				fmt.Printf(" rc:%s", t.RCSite)
+			p.DoCleanup = prompt.ConfirmOrAuto("Delete these releases?")
+		}
+
+		// Install (binary projects, custom release:install task, or install: true in config)
+		if ctx.Config.IsBinary() || p.HasReleaseInstall || (ctx.Config.Install != nil && *ctx.Config.Install) {
+			if ctx.Config.Install != nil {
+				p.DoInstall = *ctx.Config.Install
+			} else {
+				p.DoInstall = prompt.ConfirmOrAuto("Install locally (go install)?")
 			}
 		}
-		fmt.Println()
-		p.DoDeploy = prompt.ConfirmOrAuto("Deploy documentation?")
+
+		// Deploy — check both local config and -docs sibling (skip sibling
+		// when main project has its own pages_build)
+		deployCfg := ctx.Config
+		if !ctx.Config.IsDocs() && !ctx.Config.HasPagesBuild() {
+			if docsDir := ctx.Config.ResolveDocsRepo(); docsDir != "" {
+				if dc, err := config.Load(docsDir); err == nil {
+					deployCfg = dc
+				}
+			}
+		}
+		if deployCfg.HasPagesDeploy() {
+			fmt.Printf("  Deploy targets:")
+			for _, t := range deployCfg.PagesDeploy {
+				fmt.Printf(" %s", t.Type)
+				if t.Site != "" {
+					fmt.Printf("(%s)", t.Site)
+				}
+				if t.HasRCSite() {
+					fmt.Printf(" rc:%s", t.RCSite)
+				}
+			}
+			fmt.Println()
+			p.DoDeploy = prompt.ConfirmOrAuto("Deploy documentation?")
+		}
 	}
 
 	// Summary
@@ -147,6 +159,11 @@ func Ask(ctx *Context) error {
 func PrintSummary(ctx *Context) {
 	p := &ctx.Plan
 	fmt.Println("\n--- Plan ---")
+	if ctx.RC {
+		fmt.Println("  Mode: RC (release candidate)")
+	} else if ctx.Promote {
+		fmt.Printf("  Mode: promote %s → %s\n", ctx.Plan.LatestRC, p.Version)
+	}
 	if p.DoGitAdd {
 		fmt.Printf("  Git add + commit: %q\n", p.CommitMsg)
 	}

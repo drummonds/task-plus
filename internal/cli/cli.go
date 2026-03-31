@@ -240,6 +240,8 @@ func runRelease(args []string) {
 	yes := fs.Bool("yes", false, "auto-confirm all prompts")
 	dir := fs.String("dir", ".", "project directory")
 	comment := fs.String("comment", "", "default release comment (overrides .tp-release-comment)")
+	rc := fs.Bool("rc", false, "create a release candidate tag (vX.Y.Z-rcN)")
+	promote := fs.Bool("promote", false, "promote latest RC to final release")
 	_ = fs.Parse(args)
 
 	if *yes {
@@ -268,10 +270,26 @@ func runRelease(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("task-plus release %s\n", appVersion)
+	mode := "release"
+	if *rc {
+		mode = "release --rc"
+	} else if *promote {
+		mode = "release --promote"
+	}
+	fmt.Printf("task-plus %s %s\n", mode, appVersion)
 	fmt.Printf("Project: %s (%s)\n", absDir, cfg.Type)
 
-	if err := workflow.Run(cfg, *dryRun, *comment); err != nil {
+	var opts []workflow.RunOption
+	if *comment != "" {
+		opts = append(opts, workflow.WithComment(*comment))
+	}
+	if *rc {
+		opts = append(opts, workflow.WithRC())
+	}
+	if *promote {
+		opts = append(opts, workflow.WithPromote())
+	}
+	if err := workflow.Run(cfg, *dryRun, opts...); err != nil {
 		fmt.Fprintf(os.Stderr, "\nError: %v\n", err)
 		os.Exit(1)
 	}

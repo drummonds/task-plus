@@ -108,6 +108,11 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		return fmt.Errorf("tag %s already exists", p.Version)
 	}
 
+	// RC mode: skip version-update, pyproject, README, changelog, WASM — jump to tag+push
+	if ctx.RC {
+		return executeRCSteps(ctx, rb)
+	}
+
 	// 4. Run release:version-update Taskfile task if present
 	if p.HasVersionUpdate {
 		fmt.Printf("  Running release:version-update with VERSION=%s\n", p.Version)
@@ -135,8 +140,8 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		}
 	}
 
-	// 4a. Update pyproject.toml version (if Python project)
-	if ctx.Config.HasPython() && ctx.Config.HasPyproject() {
+	// 4a. Update pyproject.toml version (if Python project, unless pypi: false)
+	if ctx.Config.HasPython() && ctx.Config.HasPyproject() && (ctx.Config.Pypi == nil || *ctx.Config.Pypi) {
 		pyVer := p.Version.TagString() // no "v" prefix
 		fmt.Printf("  Updating pyproject.toml version to %s\n", pyVer)
 		if ctx.DryRun {
@@ -473,6 +478,45 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		}
 	}
 
+	return nil
+}
+
+// executeRCSteps handles the lightweight RC flow: tag + push only.
+func executeRCSteps(ctx *Context, rb *rollback) error {
+	p := &ctx.Plan
+
+	// Tag
+	tag := p.Version.String()
+	msg := tag
+	if p.Comment != "" {
+		msg = p.Comment
+	}
+	fmt.Printf("  Tagging %s (RC)\n", tag)
+	if ctx.DryRun {
+		fmt.Printf("  (dry-run) Would tag %s\n", tag)
+	} else {
+		if err := git.Tag(ctx.Config.Dir, tag, msg); err != nil {
+			return err
+		}
+		rb.tagCreated = tag
+	}
+
+	// Push
+	if p.DoPush {
+		for _, remote := range ctx.Config.Remotes {
+			fmt.Printf("  Pushing to %s...\n", remote)
+			if ctx.DryRun {
+				fmt.Printf("  (dry-run) Would push branch and tags to %s\n", remote)
+			} else {
+				if err := git.PushTo(ctx.Config.Dir, remote); err != nil {
+					return fmt.Errorf("push to %s: %w", remote, err)
+				}
+				rb.pushed = true
+			}
+		}
+	}
+
+	fmt.Printf("\nRC %s tagged. Test, then run 'tp release --promote' to finalize.\n", tag)
 	return nil
 }
 

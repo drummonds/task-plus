@@ -30,6 +30,7 @@ type Plan struct {
 	HasForgeCLI       bool
 	IsFork            bool
 	ForkBranch        string
+	LatestRC          version.Version // latest RC tag for promote mode
 
 	// User decisions
 	DoGitAdd      bool
@@ -48,22 +49,46 @@ type Plan struct {
 type Context struct {
 	Config  *config.Config
 	DryRun  bool
+	RC      bool   // --rc: create release candidate tag
+	Promote bool   // --promote: promote latest RC to final release
 	Comment string // pre-set release comment (from --comment flag)
 	Plan    Plan
 }
 
+// RunOption configures the release workflow.
+type RunOption func(*Context)
+
+// WithRC enables release candidate mode.
+func WithRC() RunOption { return func(ctx *Context) { ctx.RC = true } }
+
+// WithPromote enables promote mode (RC → final).
+func WithPromote() RunOption { return func(ctx *Context) { ctx.Promote = true } }
+
+// WithComment sets a pre-set release comment.
+func WithComment(c string) RunOption {
+	return func(ctx *Context) {
+		if c != "" {
+			ctx.Comment = c
+		}
+	}
+}
+
 // Run executes the full release workflow: Check → Gather → Ask → Execute.
-func Run(cfg *config.Config, dryRun bool, comment ...string) error {
+func Run(cfg *config.Config, dryRun bool, opts ...RunOption) error {
+	ctx := &Context{Config: cfg, DryRun: dryRun}
+	for _, opt := range opts {
+		opt(ctx)
+	}
+
+	if ctx.RC && ctx.Promote {
+		return fmt.Errorf("--rc and --promote are mutually exclusive")
+	}
+
 	// Binary projects run goreleaser which requires a clean git state.
-	if cfg.IsBinary() {
+	if cfg.IsBinary() && !ctx.RC {
 		if err := checkDistClean(cfg.Dir); err != nil {
 			return err
 		}
-	}
-
-	ctx := &Context{Config: cfg, DryRun: dryRun}
-	if len(comment) > 0 && comment[0] != "" {
-		ctx.Comment = comment[0]
 	}
 
 	// 1. Precheck — fast checks before user interaction
@@ -87,9 +112,12 @@ func Run(cfg *config.Config, dryRun bool, comment ...string) error {
 	}
 
 	// 4. Check — full checks (including tests) after questions
-	fmt.Println("\n=== Run checks ===")
-	if err := runCmds(ctx, cfg.Check); err != nil {
-		return fmt.Errorf("Run checks: %w", err)
+	// RC mode skips full checks — the promote step will run them.
+	if !ctx.RC {
+		fmt.Println("\n=== Run checks ===")
+		if err := runCmds(ctx, cfg.Check); err != nil {
+			return fmt.Errorf("Run checks: %w", err)
+		}
 	}
 
 	// 4b. Validate deploy targets before any irreversible steps
@@ -106,7 +134,9 @@ func Run(cfg *config.Config, dryRun bool, comment ...string) error {
 		return fmt.Errorf("Execute: %w", err)
 	}
 
-	fmt.Printf("\nRelease %s complete!\n", ctx.Plan.Version)
+	if !ctx.RC {
+		fmt.Printf("\nRelease %s complete!\n", ctx.Plan.Version)
+	}
 	return nil
 }
 

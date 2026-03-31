@@ -158,6 +158,64 @@ func (v Version) BumpPrerelease(name string, tags []string) Version {
 	return base.WithPrerelease(fmt.Sprintf("%s.%d", name, iter+1))
 }
 
+// ParseRC extracts the RC number from a prerelease string like "rc3".
+// Returns (0, false) if the prerelease is not an RC.
+func ParseRC(pre string) (int, bool) {
+	if !strings.HasPrefix(pre, "rc") {
+		return 0, false
+	}
+	n, err := strconv.Atoi(pre[2:])
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	return n, true
+}
+
+// IsRC returns true if this version has an RC prerelease suffix.
+func (v Version) IsRC() bool {
+	_, ok := ParseRC(v.Prerelease)
+	return ok
+}
+
+// LatestRCFromTags finds the highest rcN tag for a given base version.
+func LatestRCFromTags(tags []string, base Version) (Version, bool) {
+	var best Version
+	bestN := 0
+	found := false
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		v, err := Parse(t)
+		if err != nil || v.Prerelease == "" {
+			continue
+		}
+		if v.Major != base.Major || v.Minor != base.Minor || v.Patch != base.Patch {
+			continue
+		}
+		n, ok := ParseRC(v.Prerelease)
+		if !ok {
+			continue
+		}
+		if n > bestN {
+			best = v
+			bestN = n
+			found = true
+		}
+	}
+	return best, found
+}
+
+// BumpRC returns the next RC version for the given base version.
+// Scans tags for existing rcN, returns base-rc(N+1). If none, returns base-rc1.
+func (v Version) BumpRC(tags []string) Version {
+	base := v.Base()
+	latest, found := LatestRCFromTags(tags, base)
+	if !found {
+		return base.WithPrerelease("rc1")
+	}
+	n, _ := ParseRC(latest.Prerelease)
+	return base.WithPrerelease(fmt.Sprintf("rc%d", n+1))
+}
+
 // BumpPastRetracted bumps patch, skipping any retracted versions.
 func (v Version) BumpPastRetracted(retracted []Version) Version {
 	next := v.BumpPatch()

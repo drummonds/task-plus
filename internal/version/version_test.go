@@ -172,6 +172,86 @@ func TestWithPrerelease(t *testing.T) {
 	}
 }
 
+func TestParseRC(t *testing.T) {
+	tests := []struct {
+		input string
+		wantN int
+		wantOK bool
+	}{
+		{"rc1", 1, true},
+		{"rc3", 3, true},
+		{"rc10", 10, true},
+		{"beta", 0, false},
+		{"rc", 0, false},
+		{"rc0", 0, false},
+		{"mybranch.1", 0, false},
+	}
+	for _, tt := range tests {
+		n, ok := ParseRC(tt.input)
+		if n != tt.wantN || ok != tt.wantOK {
+			t.Errorf("ParseRC(%q) = (%d, %v), want (%d, %v)", tt.input, n, ok, tt.wantN, tt.wantOK)
+		}
+	}
+}
+
+func TestIsRC(t *testing.T) {
+	rc := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "rc1"}
+	if !rc.IsRC() {
+		t.Error("expected rc1 to be RC")
+	}
+	notRC := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "beta"}
+	if notRC.IsRC() {
+		t.Error("expected beta to not be RC")
+	}
+	release := Version{Major: 1, Minor: 0, Patch: 0}
+	if release.IsRC() {
+		t.Error("expected release to not be RC")
+	}
+}
+
+func TestLatestRCFromTags(t *testing.T) {
+	tags := []string{"v1.0.0-rc1", "v1.0.0-rc2", "v1.0.0-rc3", "v1.0.0-beta.1", "v1.1.0-rc1"}
+	base := Version{Major: 1, Minor: 0, Patch: 0}
+
+	got, found := LatestRCFromTags(tags, base)
+	if !found {
+		t.Fatal("expected to find an RC version")
+	}
+	want := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "rc3"}
+	if got != want {
+		t.Errorf("LatestRCFromTags() = %v, want %v", got, want)
+	}
+}
+
+func TestLatestRCFromTagsNotFound(t *testing.T) {
+	tags := []string{"v1.0.0", "v1.0.0-beta.1"}
+	base := Version{Major: 1, Minor: 0, Patch: 0}
+	_, found := LatestRCFromTags(tags, base)
+	if found {
+		t.Error("expected not found")
+	}
+}
+
+func TestBumpRC(t *testing.T) {
+	base := Version{Major: 1, Minor: 0, Patch: 0}
+	tags := []string{"v1.0.0-rc1", "v1.0.0-rc2"}
+
+	got := base.BumpRC(tags)
+	want := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "rc3"}
+	if got != want {
+		t.Errorf("BumpRC() = %v, want %v", got, want)
+	}
+}
+
+func TestBumpRCFirst(t *testing.T) {
+	base := Version{Major: 1, Minor: 0, Patch: 0}
+	got := base.BumpRC(nil)
+	want := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "rc1"}
+	if got != want {
+		t.Errorf("BumpRC() = %v, want %v", got, want)
+	}
+}
+
 func TestBase(t *testing.T) {
 	v := Version{Major: 1, Minor: 0, Patch: 0, Prerelease: "beta.1"}
 	got := v.Base()

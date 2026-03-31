@@ -63,6 +63,7 @@ var knownConfigKeys = map[string]bool{
 	"remotes":           true,
 	"cleanup":           true,
 	"fork":              true,
+	"pypi":              true,
 	"install":           true,
 	"install_retries":   true,
 	"languages":         true,
