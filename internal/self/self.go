@@ -55,7 +55,7 @@ func runUpdate(currentVersion string) error {
 		return fmt.Errorf("go install: %w", err)
 	}
 
-	if err := symlinkTP(); err != nil {
+	if err := SymlinkTP(); err != nil {
 		fmt.Printf("Warning: could not create tp symlink: %v\n", err)
 	}
 
@@ -63,8 +63,8 @@ func runUpdate(currentVersion string) error {
 	return nil
 }
 
-// symlinkTP creates a "tp" symlink pointing to "task-plus" in GOBIN.
-func symlinkTP() error {
+// SymlinkTP creates a "tp" symlink pointing to "task-plus" in GOBIN.
+func SymlinkTP() error {
 	binDir, err := goBinDir()
 	if err != nil {
 		return err

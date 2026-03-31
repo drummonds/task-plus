@@ -16,6 +16,7 @@ import (
 	"codeberg.org/hum3/task-plus/internal/prompt"
 	"codeberg.org/hum3/task-plus/internal/readme"
 	"codeberg.org/hum3/task-plus/internal/release"
+	"codeberg.org/hum3/task-plus/internal/self"
 	"codeberg.org/hum3/task-plus/internal/version"
 )
 
@@ -376,6 +377,11 @@ func executeSteps(ctx *Context, rb *rollback) error {
 				}
 				if lastErr != nil {
 					return fmt.Errorf("go install failed after %d attempts: %w", retries, lastErr)
+				}
+				if modPath == "codeberg.org/hum3/task-plus" {
+					if err := self.SymlinkTP(); err != nil {
+						fmt.Printf("  Warning: could not create tp symlink: %v\n", err)
+					}
 				}
 			}
 		}
