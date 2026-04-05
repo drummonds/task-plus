@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"codeberg.org/hum3/task-plus/internal/check"
@@ -20,6 +21,7 @@ import (
 	"codeberg.org/hum3/task-plus/internal/md2html"
 	"codeberg.org/hum3/task-plus/internal/mdupdate"
 	"codeberg.org/hum3/task-plus/internal/pages"
+	"codeberg.org/hum3/task-plus/internal/ports"
 	"codeberg.org/hum3/task-plus/internal/prompt"
 	"codeberg.org/hum3/task-plus/internal/readme"
 	"codeberg.org/hum3/task-plus/internal/self"
@@ -55,6 +57,7 @@ var commands = []struct {
 	{"md_update", "Update auto-marker sections in a markdown file (toc, pages, links)"},
 	{"readme", "Update auto-marker sections in README.md (links, version)"},
 	{"favicon", "Generate an SVG favicon for static sites"},
+	{"clean:ports", "Kill processes on configured port range"},
 	{"wt", "Manage git worktrees (start, agent, review, merge, clean, list, dashboard)"},
 	{"claude", "Run claude --dangerously-skip-permissions (requires worktree + sandbox)"},
 	{"self", "Manage task-plus itself (update, etc.)"},
@@ -96,6 +99,8 @@ func Main() {
 		runMdUpdate(os.Args[2:])
 	case "readme":
 		runReadme(os.Args[2:])
+	case "clean:ports":
+		runCleanPorts(os.Args[2:])
 	case "wt":
 		runWt(os.Args[2:])
 	case "claude":
@@ -877,6 +882,55 @@ func reposRemove(dir, name string) {
 		os.Exit(1)
 	}
 	fmt.Printf("Removed remote %q\n", name)
+}
+
+func runCleanPorts(args []string) {
+	fs := flag.NewFlagSet("clean:ports", flag.ExitOnError)
+	dir := fs.String("dir", ".", "project directory")
+	_ = fs.Parse(args)
+
+	absDir, err := filepath.Abs(*dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	cfg, err := config.Load(absDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+
+	start, end := 0, 0
+	if len(cfg.Ports) == 2 {
+		start, end = cfg.Ports[0], cfg.Ports[1]
+	}
+
+	// Optional positional arg overrides start port, keeping range size
+	if fs.NArg() > 0 {
+		s, err := strconv.Atoi(fs.Arg(0))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: invalid port: %s\n", fs.Arg(0))
+			os.Exit(1)
+		}
+		rangeSize := 9 // default: 10 ports
+		if start > 0 && end > start {
+			rangeSize = end - start
+		}
+		start = s
+		end = s + rangeSize
+	}
+
+	if start == 0 {
+		fmt.Fprintf(os.Stderr, "No port range configured.\n")
+		fmt.Fprintf(os.Stderr, "Add 'ports: [1340, 1349]' to task-plus.yml or pass a start port.\n")
+		os.Exit(1)
+	}
+
+	if err := ports.Clean(start, end); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runWt(args []string) {

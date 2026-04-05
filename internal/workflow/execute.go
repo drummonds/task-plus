@@ -119,6 +119,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		fmt.Printf("  Running release:version-update with VERSION=%s\n", p.Version)
 		if ctx.DryRun {
 			fmt.Printf("  (dry-run) Would run: task release:version-update\n")
+			fmt.Printf("  (dry-run) Would commit: \"Update version to %s\"\n", p.Version)
 		} else {
 			cmd := exec.Command("task", "release:version-update")
 			cmd.Dir = ctx.Config.Dir
@@ -147,6 +148,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		fmt.Printf("  Updating pyproject.toml version to %s\n", pyVer)
 		if ctx.DryRun {
 			fmt.Printf("  (dry-run) Would update pyproject.toml version to %s\n", pyVer)
+			fmt.Printf("  (dry-run) Would commit: \"Update pyproject.toml version to %s\"\n", pyVer)
 		} else {
 			if err := ctx.Config.UpdatePyprojectVersion(pyVer); err != nil {
 				return fmt.Errorf("updating pyproject.toml: %w", err)
@@ -167,6 +169,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 	fmt.Println("  Updating README.md markers...")
 	if ctx.DryRun {
 		fmt.Println("  (dry-run) Would update README.md markers")
+		fmt.Printf("  (dry-run) Would commit: \"Update README.md for %s\"\n", p.Version)
 	} else {
 		if err := readme.Update(ctx.Config.Dir, p.Version.String()); err != nil {
 			fmt.Printf("  Warning: README.md update: %v\n", err)
@@ -188,6 +191,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 	fmt.Printf("  Updating CHANGELOG.md (%s format)\n", ctx.Config.ChangelogFormat)
 	if ctx.DryRun {
 		fmt.Println("  (dry-run) Would update changelog")
+		fmt.Printf("  (dry-run) Would commit: \"Update CHANGELOG for %s\"\n", p.Version)
 	} else {
 		if err := changelog.Update(ctx.Config.Dir, p.Version.TagString(), ctx.Config.ChangelogFormat, p.Comment); err != nil {
 			return err

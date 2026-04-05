@@ -36,6 +36,7 @@ type Config struct {
 	PagesBuild       []string        `yaml:"pages_build"`
 	PagesDeploy      []deploy.Target `yaml:"pages_deploy"`
 	RetractReviewed  string          `yaml:"retract_reviewed"`
+	Ports            []int           `yaml:"ports"`
 	DocsRepo         string          `yaml:"docs_repo"`
 	ParentRepo       string          `yaml:"parent_repo"`
 	Dir              string          `yaml:"-"`
