@@ -24,11 +24,12 @@ var templateFS embed.FS
 
 // Config holds the parameters for a conversion run.
 type Config struct {
-	Src     string // source markdown directory
-	Dst     string // destination HTML directory
-	Label   string // breadcrumb label for this doc set
-	Project string // project name for breadcrumb root
-	File    string // single file to convert (overrides Src directory scan)
+	Src           string // source markdown directory
+	Dst           string // destination HTML directory
+	Label         string // breadcrumb label for this doc set
+	Project       string // project name for breadcrumb root
+	File          string // single file to convert (overrides Src directory scan)
+	NoBreadcrumbs bool   // suppress breadcrumb generation
 }
 
 type breadcrumb struct {
@@ -127,12 +128,17 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 	rootURL := docsRootURL(cfg.Dst)
 	faviconURL := strings.TrimSuffix(rootURL, "index.html") + "favicon.svg"
 
-	// Breadcrumbs: category + page title only (project name is in the navbar)
+	// Breadcrumbs: depth-aware with clickable links.
 	var crumbs []breadcrumb
-	if cfg.Label != "" {
-		crumbs = append(crumbs, breadcrumb{Label: cfg.Label, URL: ""})
+	if !cfg.NoBreadcrumbs {
+		isRootIndex := outName == "index.html" && rootURL == "index.html"
+		if isRootIndex {
+			crumbs = append(crumbs, breadcrumb{Label: "Home", URL: ""})
+		} else {
+			crumbs = append(crumbs, breadcrumb{Label: "Home", URL: rootURL})
+			crumbs = append(crumbs, breadcrumb{Label: title, URL: ""})
+		}
 	}
-	crumbs = append(crumbs, breadcrumb{Label: title, URL: ""})
 
 	data := pageData{
 		Title:       title,
@@ -158,13 +164,12 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 }
 
 // docsRootURL returns the relative URL to index.html from dst.
-// Walks up from dst looking for a directory containing index.html or index.md.
+// Walks up from dst's parent looking for the nearest ancestor with index.html
+// or index.md. If no ancestor has one, the current directory is assumed to be
+// the docs root.
 func docsRootURL(dst string) string {
 	abs, err := filepath.Abs(dst)
 	if err != nil {
-		return "index.html"
-	}
-	if hasIndex(abs) {
 		return "index.html"
 	}
 	dir := filepath.Dir(abs)
@@ -178,7 +183,7 @@ func docsRootURL(dst string) string {
 		}
 		dir = filepath.Dir(dir)
 	}
-	fmt.Fprintf(os.Stderr, "Warning: no index.html found in %s or parent directories\n", dst)
+	// No ancestor has an index; current directory is the docs root.
 	return "index.html"
 }
 

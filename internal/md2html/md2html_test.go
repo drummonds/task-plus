@@ -24,6 +24,82 @@ func TestDocsRootURL(t *testing.T) {
 	}
 }
 
+func TestBreadcrumbs(t *testing.T) {
+	root := t.TempDir()
+	docs := filepath.Join(root, "docs")
+	nested := filepath.Join(docs, "example")
+	_ = os.MkdirAll(nested, 0755)
+
+	// Create index.md at docs root so docsRootURL can find it.
+	_ = os.WriteFile(filepath.Join(docs, "index.md"), []byte("# Home\n"), 0644)
+
+	// Root index: single active "Home" crumb.
+	t.Run("root_index", func(t *testing.T) {
+		cfg := Config{Src: docs, Dst: docs, Project: "test"}
+		_ = os.WriteFile(filepath.Join(docs, "index.md"), []byte("# Home\n"), 0644)
+		if err := Run(cfg); err != nil {
+			t.Fatal(err)
+		}
+		out, _ := os.ReadFile(filepath.Join(docs, "index.html"))
+		html := string(out)
+		if !strings.Contains(html, `<li class="is-active"><a href="#" aria-current="page">Home</a></li>`) {
+			t.Error("root index should have active Home crumb")
+		}
+		// Should NOT have a linked Home crumb.
+		if strings.Contains(html, `<a href="index.html">Home</a>`) {
+			t.Error("root index should not link Home to itself")
+		}
+	})
+
+	// Root subpage: Home link + active page title.
+	t.Run("root_subpage", func(t *testing.T) {
+		_ = os.WriteFile(filepath.Join(docs, "about.md"), []byte("# About Us\n"), 0644)
+		cfg := Config{Src: docs, Dst: docs, Project: "test", File: filepath.Join(docs, "about.md")}
+		if err := Run(cfg); err != nil {
+			t.Fatal(err)
+		}
+		out, _ := os.ReadFile(filepath.Join(docs, "about.html"))
+		html := string(out)
+		if !strings.Contains(html, `<a href="index.html">Home</a>`) {
+			t.Error("subpage should have clickable Home link")
+		}
+		if !strings.Contains(html, `<li class="is-active"><a href="#" aria-current="page">About Us</a></li>`) {
+			t.Error("subpage should have active page title")
+		}
+	})
+
+	// Nested page: Home link with ../ prefix.
+	t.Run("nested_page", func(t *testing.T) {
+		_ = os.WriteFile(filepath.Join(nested, "index.md"), []byte("# Example\n"), 0644)
+		cfg := Config{Src: nested, Dst: nested, Project: "test"}
+		if err := Run(cfg); err != nil {
+			t.Fatal(err)
+		}
+		out, _ := os.ReadFile(filepath.Join(nested, "index.html"))
+		html := string(out)
+		if !strings.Contains(html, `<a href="../index.html">Home</a>`) {
+			t.Error("nested page should link Home to ../index.html")
+		}
+		if !strings.Contains(html, `<li class="is-active"><a href="#" aria-current="page">Example</a></li>`) {
+			t.Error("nested page should have active page title")
+		}
+	})
+
+	// NoBreadcrumbs: no breadcrumb nav at all.
+	t.Run("no_breadcrumbs", func(t *testing.T) {
+		_ = os.WriteFile(filepath.Join(docs, "wasm.md"), []byte("# WASM Demo\n"), 0644)
+		cfg := Config{Src: docs, Dst: docs, Project: "test", NoBreadcrumbs: true, File: filepath.Join(docs, "wasm.md")}
+		if err := Run(cfg); err != nil {
+			t.Fatal(err)
+		}
+		out, _ := os.ReadFile(filepath.Join(docs, "wasm.html"))
+		html := string(out)
+		if strings.Contains(html, "breadcrumb") {
+			t.Error("NoBreadcrumbs should suppress all breadcrumb markup")
+		}
+	})
+}
+
 func TestMarkerReplacementEndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	dst := filepath.Join(dir, "out")

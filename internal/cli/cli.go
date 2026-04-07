@@ -616,14 +616,16 @@ func runMd2html(args []string) {
 	label := fs.String("label", "Internal Docs", "breadcrumb label for this doc set")
 	project := fs.String("project", "", "project name (auto-detected from go.mod if empty)")
 	file := fs.String("file", "", "single markdown file to convert (overrides --src)")
+	noBreadcrumbs := fs.Bool("no-breadcrumbs", false, "suppress breadcrumb navigation")
 	_ = fs.Parse(args)
 
 	cfg := md2html.Config{
-		Src:     *src,
-		Dst:     *dst,
-		Label:   *label,
-		Project: *project,
-		File:    *file,
+		Src:           *src,
+		Dst:           *dst,
+		Label:         *label,
+		Project:       *project,
+		File:          *file,
+		NoBreadcrumbs: *noBreadcrumbs,
 	}
 	if err := md2html.Run(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
