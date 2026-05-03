@@ -617,6 +617,7 @@ func runMd2html(args []string) {
 	project := fs.String("project", "", "project name (auto-detected from go.mod if empty)")
 	file := fs.String("file", "", "single markdown file to convert (overrides --src)")
 	noBreadcrumbs := fs.Bool("no-breadcrumbs", false, "suppress breadcrumb navigation")
+	rebuild := fs.Bool("rebuild", false, "rebuild every file even if output is newer than source")
 	_ = fs.Parse(args)
 
 	cfg := md2html.Config{
@@ -626,6 +627,7 @@ func runMd2html(args []string) {
 		Project:       *project,
 		File:          *file,
 		NoBreadcrumbs: *noBreadcrumbs,
+		Force:         *rebuild,
 	}
 	if err := md2html.Run(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

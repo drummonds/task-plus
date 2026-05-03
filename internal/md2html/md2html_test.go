@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDocsRootURL(t *testing.T) {
@@ -136,5 +137,84 @@ func TestMarkerReplacementEndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(html, "Some text.") {
 		t.Errorf("expected hand-written content preserved, got:\n%s", html)
+	}
+}
+
+func TestIncrementalRebuild(t *testing.T) {
+	dir := t.TempDir()
+	srcPath := filepath.Join(dir, "page.md")
+	outPath := filepath.Join(dir, "page.html")
+
+	if err := os.WriteFile(srcPath, []byte("# Page\n\noriginal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := Config{Src: dir, Dst: dir, Project: "test", NoBreadcrumbs: true}
+	if err := Run(cfg); err != nil {
+		t.Fatal(err)
+	}
+	firstOut, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("first build did not produce output: %v", err)
+	}
+
+	// Force output mtime ahead of source so a rebuild would only happen if Force is set.
+	future := time.Now().Add(2 * time.Hour)
+	if err := os.Chtimes(outPath, future, future); err != nil {
+		t.Fatal(err)
+	}
+	// Mutate source content but keep mtime older than output.
+	if err := os.WriteFile(srcPath, []byte("# Page\n\nchanged\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	past := time.Now().Add(-1 * time.Hour)
+	if err := os.Chtimes(srcPath, past, past); err != nil {
+		t.Fatal(err)
+	}
+
+	// Default: skip — output should still match the first build.
+	if err := Run(cfg); err != nil {
+		t.Fatal(err)
+	}
+	skipped, _ := os.ReadFile(outPath)
+	if string(skipped) != string(firstOut) {
+		t.Error("expected output to be skipped when output mtime > source mtime")
+	}
+
+	// Force: rebuild even when output is newer.
+	cfg.Force = true
+	if err := Run(cfg); err != nil {
+		t.Fatal(err)
+	}
+	rebuilt, _ := os.ReadFile(outPath)
+	if !strings.Contains(string(rebuilt), "changed") {
+		t.Error("Force=true should rebuild and pick up new source content")
+	}
+
+	// Source newer than output: rebuild without Force.
+	cfg.Force = false
+	if err := os.WriteFile(srcPath, []byte("# Page\n\nfresh\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	stale := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(outPath, stale, stale); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(cfg); err != nil {
+		t.Fatal(err)
+	}
+	fresh, _ := os.ReadFile(outPath)
+	if !strings.Contains(string(fresh), "fresh") {
+		t.Error("rebuild expected when source mtime > output mtime")
+	}
+
+	// Output missing: rebuild without Force.
+	if err := os.Remove(outPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(outPath); err != nil {
+		t.Errorf("missing output should be rebuilt: %v", err)
 	}
 }

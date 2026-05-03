@@ -30,6 +30,7 @@ type Config struct {
 	Project       string // project name for breadcrumb root
 	File          string // single file to convert (overrides Src directory scan)
 	NoBreadcrumbs bool   // suppress breadcrumb generation
+	Force         bool   // rebuild every file even if output is newer than source
 }
 
 type breadcrumb struct {
@@ -102,7 +103,15 @@ func Run(cfg Config) error {
 }
 
 func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name string) error {
-	content, err := os.ReadFile(filepath.Join(cfg.Src, name))
+	srcPath := filepath.Join(cfg.Src, name)
+	outName := strings.TrimSuffix(name, ".md") + ".html"
+	outPath := filepath.Join(cfg.Dst, outName)
+
+	if !cfg.Force && upToDate(srcPath, outPath) {
+		return nil
+	}
+
+	content, err := os.ReadFile(srcPath)
 	if err != nil {
 		return err
 	}
@@ -122,8 +131,6 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 
 	rendered := replaceMermaidBlocks(buf.String())
 	hasMermaid := mermaidBlockRe.MatchString(buf.String())
-
-	outName := strings.TrimSuffix(name, ".md") + ".html"
 
 	rootURL := docsRootURL(cfg.Dst)
 	faviconURL := strings.TrimSuffix(rootURL, "index.html") + "favicon.svg"
@@ -155,12 +162,26 @@ func convertFile(md goldmark.Markdown, tmpl *template.Template, cfg Config, name
 		return fmt.Errorf("template: %w", err)
 	}
 
-	outPath := filepath.Join(cfg.Dst, outName)
 	if err := os.WriteFile(outPath, out.Bytes(), 0o644); err != nil {
 		return err
 	}
-	fmt.Printf("%s -> %s\n", filepath.Join(cfg.Src, name), outPath)
+	fmt.Printf("%s -> %s\n", srcPath, outPath)
 	return nil
+}
+
+// upToDate reports whether outPath exists and is at least as new as srcPath.
+// Any stat failure (missing output, permission error) returns false so the
+// caller rebuilds.
+func upToDate(srcPath, outPath string) bool {
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return false
+	}
+	outInfo, err := os.Stat(outPath)
+	if err != nil {
+		return false
+	}
+	return !srcInfo.ModTime().After(outInfo.ModTime())
 }
 
 // docsRootURL returns the relative URL to index.html from dst.

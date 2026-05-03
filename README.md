@@ -138,6 +138,8 @@ Converts markdown files to Bulma-styled HTML pages with breadcrumb navigation. S
 
 Breadcrumbs auto-detect the docs root by walking up from `--dst` to find `index.html`/`index.md`, so subdirectory pages link correctly to the root.
 
+By default, files whose `.html` output is at least as new as the source `.md` are skipped. Pass `--rebuild` to force a full rebuild (e.g. after a template change).
+
 Typical docs repo Taskfile pattern — convert subdirectories first, `index.md` last so `auto:pages` sees all HTML files:
 
 ```yaml
