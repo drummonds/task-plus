@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+ - Multi-forge release arrangements: Codeberg + GitHub mirror, GitHub only, Codeberg only, and self-hosted Forgejo
+ - `tp check --setup`: interactive interview that identifies the remote/forge arrangement and writes it to task-plus.yml
+ - `remotes:` entries may now be maps with `forge:` and `token_env:` overrides (plain strings still work)
+ - Release cleanup now deletes old releases on every remote with API access, not just the release remote
+ - gh/glab release commands pinned to the right repo with `-R`; Forgejo tokens fall back to `FORGEJO_TOKEN`/`GITEA_TOKEN`
+ - Goreleaser: release target validated against configured remotes; Forgejo token passed as `GITEA_TOKEN` when needed
+ - Go proxy poke skipped for module paths the public proxy cannot reach
+ - Note: rewriting `remotes:` via `tp check --setup`/`tp repos add|remove` drops comments inside that block only
+
 ## [0.1.78] - 2026-05-10
 
  - Fixing ignoring retracted versions

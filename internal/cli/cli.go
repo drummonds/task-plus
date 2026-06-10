@@ -47,7 +47,7 @@ var commands = []struct {
 	name string
 	desc string
 }{
-	{"check", "Validate task-plus.yml and Taskfile.yml configuration"},
+	{"check", "Validate task-plus.yml and Taskfile.yml configuration (--setup: interactive remote/forge setup)"},
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
 	{"release:rc-setup", "Add rc_site to pages_deploy targets in task-plus.yml"},
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
@@ -171,12 +171,22 @@ func runCheck(args []string) {
 	fs := flag.NewFlagSet("check", flag.ExitOnError)
 	dir := fs.String("dir", ".", "project directory")
 	verbose := fs.Bool("verbose", false, "show all findings including passes")
+	setup := fs.Bool("setup", false, "interactive remote/forge setup (writes task-plus.yml)")
 	_ = fs.Parse(args)
 
 	absDir, err := filepath.Abs(*dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	if *setup {
+		fmt.Printf("task-plus setup %s\n\n", appVersion)
+		if err := check.Setup(absDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println()
 	}
 
 	fmt.Printf("task-plus check %s\n\n", appVersion)
@@ -821,20 +831,26 @@ func reposInfo(dir string) {
 	// Show configured remotes
 	configured := make(map[string]bool)
 	fmt.Println("Configured remotes:")
-	for _, name := range cfg.Remotes {
-		configured[name] = true
-		url, err := git.RemoteURL(dir, name)
+	for _, r := range cfg.Remotes {
+		configured[r.Name] = true
+		url, err := git.RemoteURL(dir, r.Name)
 		if err != nil {
-			fmt.Printf("  %-16s (not found in git)\n", name)
+			fmt.Printf("  %-16s (not found in git)\n", r.Name)
 			continue
 		}
 		forgeType := forge.DetectFromURL(url)
-		hasCLI := forge.Forge{Type: forgeType}.HasCLI()
+		if r.Forge != "" {
+			forgeType = forge.Type(r.Forge)
+		}
+		f := forge.Forge{Type: forgeType, URL: url, TokenEnv: r.TokenEnv}
 		cli := ""
-		if hasCLI {
+		if f.HasCLI() {
 			cli = ", cli: yes"
 		}
-		fmt.Printf("  %-16s %s (%s%s)\n", name, url, forgeType, cli)
+		if r.TokenEnv != "" {
+			cli += ", token_env: " + r.TokenEnv
+		}
+		fmt.Printf("  %-16s %s (%s%s)\n", r.Name, url, forgeType, cli)
 	}
 
 	// Show git remotes not yet configured

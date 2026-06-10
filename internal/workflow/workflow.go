@@ -13,6 +13,14 @@ import (
 	"codeberg.org/hum3/task-plus/internal/version"
 )
 
+// RemoteForge is the per-remote release-API state.
+type RemoteForge struct {
+	Name      string             // git remote name
+	Forge     forge.Forge        // detected (or overridden) forge
+	HasAccess bool               // release API usable (CLI/token available)
+	Deletions []cleanup.Deletion // old releases to delete on this remote
+}
+
 // Plan holds all gathered state and user decisions for a release.
 type Plan struct {
 	// Gathered state
@@ -22,11 +30,11 @@ type Plan struct {
 	LatestTag         version.Version
 	FoundTag          bool
 	Retracted         []version.Version
-	ReleasesToDelete  []cleanup.Deletion
+	RemoteForges      []RemoteForge // ordered as cfg.Remotes
 	HasGoreleaserCfg  bool
 	HasVersionUpdate  bool
 	HasReleaseInstall bool
-	Forge             forge.Forge
+	Forge             forge.Forge // forge of the release remote
 	HasForgeCLI       bool
 	IsFork            bool
 	ForkBranch        string
@@ -43,6 +51,15 @@ type Plan struct {
 	DoCleanup     bool
 	DoInstall     bool
 	DoDeploy      bool
+}
+
+// TotalDeletions returns the number of planned release deletions across all remotes.
+func (p *Plan) TotalDeletions() int {
+	n := 0
+	for _, rf := range p.RemoteForges {
+		n += len(rf.Deletions)
+	}
+	return n
 }
 
 // Context carries config and flags through the workflow.

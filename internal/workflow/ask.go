@@ -76,7 +76,7 @@ func Ask(ctx *Context) error {
 	p.Comment = prompt.AskStringOrAuto("Release comment", commentDefault)
 
 	// Push
-	remotes := ctx.Config.Remotes
+	remotes := ctx.Config.RemoteNames()
 	if len(remotes) > 1 {
 		fmt.Printf("  Remotes: %s\n", strings.Join(remotes, ", "))
 	}
@@ -105,11 +105,17 @@ func Ask(ctx *Context) error {
 			}
 		}
 
-		// Cleanup
-		if len(p.ReleasesToDelete) > 0 {
-			fmt.Printf("  Will delete %d old %s release(s):\n", len(p.ReleasesToDelete), p.Forge.Type)
-			for _, d := range p.ReleasesToDelete {
-				fmt.Printf("    - %s (%s)\n", d.Tag, d.Reason)
+		// Cleanup (across all remotes with API access)
+		if p.TotalDeletions() > 0 {
+			fmt.Printf("  Will delete %d old release(s):\n", p.TotalDeletions())
+			for _, rf := range p.RemoteForges {
+				if len(rf.Deletions) == 0 {
+					continue
+				}
+				fmt.Printf("    %s (%s):\n", rf.Name, rf.Forge.Type)
+				for _, d := range rf.Deletions {
+					fmt.Printf("      - %s (%s)\n", d.Tag, d.Reason)
+				}
 			}
 			p.DoCleanup = prompt.ConfirmOrAuto("Delete these releases?")
 		}
@@ -174,7 +180,7 @@ func PrintSummary(ctx *Context) {
 	fmt.Printf("  Comment: %s\n", p.Comment)
 	if p.DoPush {
 		if len(ctx.Config.Remotes) > 1 {
-			fmt.Printf("  Push: yes (%s)\n", strings.Join(ctx.Config.Remotes, ", "))
+			fmt.Printf("  Push: yes (%s)\n", strings.Join(ctx.Config.RemoteNames(), ", "))
 		} else {
 			fmt.Println("  Push: yes")
 		}
@@ -186,7 +192,7 @@ func PrintSummary(ctx *Context) {
 		fmt.Printf("  PyPI publish: yes (%s)\n", ctx.Config.PypiPackageName())
 	}
 	if p.DoCleanup {
-		fmt.Printf("  Cleanup: delete %d releases\n", len(p.ReleasesToDelete))
+		fmt.Printf("  Cleanup: delete %d releases\n", p.TotalDeletions())
 	}
 	if p.DoInstall && p.HasReleaseInstall {
 		fmt.Println("  Install: yes (Taskfile release:install)")

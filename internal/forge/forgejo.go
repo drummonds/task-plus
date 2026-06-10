@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 )
 
 // forgejoRelease is the subset of the Forgejo/Gitea release API response we need.
@@ -14,7 +13,7 @@ type forgejoRelease struct {
 	TagName string `json:"tag_name"`
 }
 
-func listReleasesForgejo(remoteURL string) ([]string, error) {
+func listReleasesForgejo(remoteURL, token string) ([]string, error) {
 	host, owner, repo := ExtractOwnerRepo(remoteURL)
 	if owner == "" || repo == "" {
 		return nil, fmt.Errorf("cannot parse owner/repo from %q", remoteURL)
@@ -25,7 +24,7 @@ func listReleasesForgejo(remoteURL string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if token := os.Getenv("CODEBERG_APIKEY"); token != "" {
+	if token != "" {
 		req.Header.Set("Authorization", "token "+token)
 	}
 
@@ -52,14 +51,10 @@ func listReleasesForgejo(remoteURL string) ([]string, error) {
 	return tags, nil
 }
 
-func deleteReleaseForgejo(remoteURL, tag string) error {
+func deleteReleaseForgejo(remoteURL, tag, token string) error {
 	host, owner, repo := ExtractOwnerRepo(remoteURL)
 	if owner == "" || repo == "" {
 		return fmt.Errorf("cannot parse owner/repo from %q", remoteURL)
-	}
-	token := os.Getenv("CODEBERG_APIKEY")
-	if token == "" {
-		return fmt.Errorf("CODEBERG_APIKEY not set")
 	}
 
 	// Find release ID by tag

@@ -12,6 +12,7 @@ import (
 	"codeberg.org/hum3/task-plus/internal/changelog"
 	"codeberg.org/hum3/task-plus/internal/config"
 	"codeberg.org/hum3/task-plus/internal/deploy"
+	"codeberg.org/hum3/task-plus/internal/forge"
 	"codeberg.org/hum3/task-plus/internal/git"
 	"codeberg.org/hum3/task-plus/internal/prompt"
 	"codeberg.org/hum3/task-plus/internal/readme"
@@ -263,7 +264,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 
 	// 8. Git push (all configured remotes) — ROLLBACK BOUNDARY
 	if p.DoPush {
-		for _, remote := range ctx.Config.Remotes {
+		for _, remote := range ctx.Config.RemoteNames() {
 			fmt.Printf("  Pushing to %s...\n", remote)
 			if ctx.DryRun {
 				fmt.Printf("  (dry-run) Would push branch and tags to %s\n", remote)
@@ -279,10 +280,24 @@ func executeSteps(ctx *Context, rb *rollback) error {
 	// 9. Goreleaser (post-push — warn only on failure)
 	if p.DoGoreleaser {
 		fmt.Println("  Running goreleaser...")
+		var extraEnv []string
+		if target, err := release.ReleaseTarget(ctx.Config.Dir, ctx.Config.GoreleaserConfig); err == nil {
+			targetType := forge.Type(release.TargetForgeType(target))
+			if targetType != p.Forge.Type {
+				fmt.Printf("  Warning: goreleaser publishes releases to %s but the release remote is %s\n", targetType, p.Forge.Type)
+			}
+			// Goreleaser talks to Forgejo via the Gitea API and expects GITEA_TOKEN.
+			if targetType == forge.Forgejo && os.Getenv("GITEA_TOKEN") == "" && p.Forge.Type == forge.Forgejo {
+				if token := p.Forge.APIToken(); token != "" {
+					fmt.Println("  Passing forge API token to goreleaser as GITEA_TOKEN")
+					extraEnv = append(extraEnv, "GITEA_TOKEN="+token)
+				}
+			}
+		}
 		if ctx.DryRun {
 			fmt.Println("  (dry-run) Would run goreleaser")
 		} else {
-			if err := release.RunGoreleaser(ctx.Config.Dir, ctx.Config.GoreleaserConfig); err != nil {
+			if err := release.RunGoreleaser(ctx.Config.Dir, ctx.Config.GoreleaserConfig, extraEnv...); err != nil {
 				return err
 			}
 		}
@@ -314,16 +329,18 @@ func executeSteps(ctx *Context, rb *rollback) error {
 		}
 	}
 
-	// 10. Cleanup
+	// 10. Cleanup (all remotes with API access)
 	if p.DoCleanup {
 		fmt.Println("  Cleaning up old releases...")
 		if ctx.DryRun {
 			fmt.Println("  (dry-run) Would delete releases")
 		} else {
-			for _, d := range p.ReleasesToDelete {
-				fmt.Printf("  Deleting %s (%s)...\n", d.Tag, d.Reason)
-				if err := p.Forge.DeleteRelease(ctx.Config.Dir, d.Tag); err != nil {
-					fmt.Printf("  Warning: %v\n", err)
+			for _, rf := range p.RemoteForges {
+				for _, d := range rf.Deletions {
+					fmt.Printf("  Deleting %s on %s (%s)...\n", d.Tag, rf.Name, d.Reason)
+					if err := rf.Forge.DeleteRelease(ctx.Config.Dir, d.Tag); err != nil {
+						fmt.Printf("  Warning: %v\n", err)
+					}
 				}
 			}
 		}
@@ -395,13 +412,18 @@ func executeSteps(ctx *Context, rb *rollback) error {
 	if p.DoPush && ctx.Config.HasGoMod() && !p.IsFork {
 		modPath, err := version.ModulePath(ctx.Config.Dir)
 		if err == nil {
-			proxyURL := fmt.Sprintf("https://proxy.golang.org/%s/@v/%s.info", modPath, p.Version)
-			fmt.Printf("  Updating Go proxy index for %s@%s...\n", modPath, p.Version)
-			if ctx.DryRun {
-				fmt.Printf("  (dry-run) Would GET %s\n", proxyURL)
+			modHost, _, _ := strings.Cut(modPath, "/")
+			if !forge.IsPublicHost(modHost) {
+				fmt.Printf("  Skipping Go proxy poke: %s is not reachable by proxy.golang.org\n", modHost)
 			} else {
-				if err := pokeGoProxy(proxyURL); err != nil {
-					fmt.Printf("  Warning: proxy poke failed: %v\n", err)
+				proxyURL := fmt.Sprintf("https://proxy.golang.org/%s/@v/%s.info", modPath, p.Version)
+				fmt.Printf("  Updating Go proxy index for %s@%s...\n", modPath, p.Version)
+				if ctx.DryRun {
+					fmt.Printf("  (dry-run) Would GET %s\n", proxyURL)
+				} else {
+					if err := pokeGoProxy(proxyURL); err != nil {
+						fmt.Printf("  Warning: proxy poke failed: %v\n", err)
+					}
 				}
 			}
 		}
@@ -513,7 +535,7 @@ func executeRCSteps(ctx *Context, rb *rollback) error {
 
 	// Push
 	if p.DoPush {
-		for _, remote := range ctx.Config.Remotes {
+		for _, remote := range ctx.Config.RemoteNames() {
 			fmt.Printf("  Pushing to %s...\n", remote)
 			if ctx.DryRun {
 				fmt.Printf("  (dry-run) Would push branch and tags to %s\n", remote)

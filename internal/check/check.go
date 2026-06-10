@@ -15,6 +15,7 @@ import (
 	"codeberg.org/hum3/task-plus/internal/favicon"
 	"codeberg.org/hum3/task-plus/internal/forge"
 	"codeberg.org/hum3/task-plus/internal/git"
+	"codeberg.org/hum3/task-plus/internal/release"
 	"codeberg.org/hum3/task-plus/internal/version"
 	"gopkg.in/yaml.v3"
 )
@@ -150,6 +151,7 @@ func Run(dir string, verbose bool) error {
 		{"Taskfile.yml", checkTaskfile(dir)},
 		{"Go module", checkGoModule(dir)},
 		{"Remotes", checkRemotes(dir)},
+		{"Goreleaser", checkGoreleaser(dir)},
 		{"Cross-repo", checkCrossRepo(dir)},
 		{"Worktrees", checkWorktrees(dir)},
 		{"GitHub Pages", checkGitHubPages(dir)},
@@ -221,6 +223,28 @@ func checkConfig(dir string) []finding {
 		}
 	}
 
+	// Validate map-form remotes entries (plain strings need no checks)
+	if v, ok := raw["remotes"]; ok {
+		if list, ok := v.([]any); ok {
+			for i, item := range list {
+				m, ok := item.(map[string]any)
+				if !ok {
+					continue
+				}
+				for key := range m {
+					switch key {
+					case "name", "forge", "token_env":
+					default:
+						findings = append(findings, finding{levelWarn, fmt.Sprintf("remotes[%d]: unknown field %q", i, key)})
+					}
+				}
+				if _, ok := m["name"]; !ok {
+					findings = append(findings, finding{levelError, fmt.Sprintf("remotes[%d]: map entry requires 'name' field", i)})
+				}
+			}
+		}
+	}
+
 	// Load config properly
 	cfg, err := config.Load(dir)
 	if err != nil {
@@ -281,6 +305,21 @@ func checkConfig(dir string) []finding {
 			findings = append(findings, finding{levelOK, fmt.Sprintf("Forge: %s", forgeStr)})
 		default:
 			findings = append(findings, finding{levelError, fmt.Sprintf("Invalid forge %q (expected: github, gitlab, forgejo)", forgeStr)})
+		}
+	}
+
+	// Validate per-remote forge overrides and token env vars
+	for _, r := range cfg.Remotes {
+		if r.Forge != "" {
+			switch r.Forge {
+			case "github", "gitlab", "forgejo", "none":
+				findings = append(findings, finding{levelOK, fmt.Sprintf("Remote %s: forge %s", r.Name, r.Forge)})
+			default:
+				findings = append(findings, finding{levelError, fmt.Sprintf("Remote %s: invalid forge %q (expected: github, gitlab, forgejo, none)", r.Name, r.Forge)})
+			}
+		}
+		if r.TokenEnv != "" && os.Getenv(r.TokenEnv) == "" {
+			findings = append(findings, finding{levelWarn, fmt.Sprintf("Remote %s: token_env %s is not set in the environment", r.Name, r.TokenEnv)})
 		}
 	}
 
@@ -531,19 +570,98 @@ func checkRemotes(dir string) []finding {
 	}
 
 	// Check each configured push-target remote exists in git
-	for _, name := range cfg.Remotes {
-		url, err := git.RemoteURL(dir, name)
+	for _, r := range cfg.Remotes {
+		url, err := git.RemoteURL(dir, r.Name)
 		if err != nil {
-			findings = append(findings, finding{levelError, fmt.Sprintf("Remote %q in config but not in git", name)})
+			findings = append(findings, finding{levelError, fmt.Sprintf("Remote %q in config but not in git — run 'tp check --setup'", r.Name)})
 			continue
 		}
 		forgeType := forge.DetectFromURL(url)
-		hasCLI := forge.Forge{Type: forgeType}.HasCLI()
+		if r.Forge != "" {
+			forgeType = forge.Type(r.Forge)
+		}
+		f := forge.Forge{Type: forgeType, URL: url, TokenEnv: r.TokenEnv}
 		extra := ""
-		if hasCLI {
+		if f.HasCLI() {
 			extra = ", cli: yes"
 		}
-		findings = append(findings, finding{levelOK, fmt.Sprintf("%-16s %s (%s%s)", name, url, forgeType, extra)})
+		if r.TokenEnv != "" {
+			state := "unset"
+			if os.Getenv(r.TokenEnv) != "" {
+				state = "set"
+			}
+			extra += fmt.Sprintf(", token_env: %s (%s)", r.TokenEnv, state)
+		}
+		level := levelOK
+		if forgeType == forge.Unknown {
+			level = levelWarn
+			extra += " — unrecognised host, run 'tp check --setup' or set forge: for this remote"
+		}
+		findings = append(findings, finding{level, fmt.Sprintf("%-16s %s (%s%s)", r.Name, url, forgeType, extra)})
+	}
+
+	return findings
+}
+
+// checkGoreleaser validates that the goreleaser release target matches the
+// configured remotes' forges (binary projects only). Warn-only — tp never
+// rewrites .goreleaser.yaml.
+func checkGoreleaser(dir string) []finding {
+	var findings []finding
+
+	cfg, err := config.Load(dir)
+	if err != nil || !cfg.IsBinary() {
+		return findings
+	}
+	target, err := release.ReleaseTarget(dir, cfg.GoreleaserConfig)
+	if err != nil {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("Cannot read %s: %v", cfg.GoreleaserConfig, err)})
+		return findings
+	}
+	targetType := release.TargetForgeType(target)
+
+	match := false
+	for _, r := range cfg.Remotes {
+		url, err := git.RemoteURL(dir, r.Name)
+		if err != nil {
+			continue
+		}
+		ft := string(forge.DetectFromURL(url))
+		if r.Forge != "" {
+			ft = r.Forge
+		}
+		if ft == targetType {
+			match = true
+			break
+		}
+	}
+	if match {
+		findings = append(findings, finding{levelOK, fmt.Sprintf("Release target: %s", targetType)})
+	} else {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("goreleaser publishes releases to %s but no configured remote is %s — adjust the release: block in %s", targetType, targetType, cfg.GoreleaserConfig)})
+	}
+
+	// Token availability for the release target
+	switch targetType {
+	case "github":
+		// gh CLI auth usually suffices; GITHUB_TOKEN only needed for goreleaser
+		if os.Getenv("GITHUB_TOKEN") == "" {
+			findings = append(findings, finding{levelWarn, "GITHUB_TOKEN not set (needed by goreleaser)"})
+		}
+	case "gitlab":
+		if os.Getenv("GITLAB_TOKEN") == "" {
+			findings = append(findings, finding{levelWarn, "GITLAB_TOKEN not set (needed by goreleaser)"})
+		}
+	case "forgejo":
+		if os.Getenv("GITEA_TOKEN") == "" {
+			rr := cfg.RemoteSpec(cfg.GetReleaseRemote())
+			f := forge.Forge{Type: forge.Forgejo, TokenEnv: rr.TokenEnv}
+			if f.APIToken() != "" {
+				findings = append(findings, finding{levelOK, "GITEA_TOKEN unset — tp release passes the forge API token to goreleaser"})
+			} else {
+				findings = append(findings, finding{levelWarn, "No Forgejo API token set (GITEA_TOKEN or CODEBERG_APIKEY/FORGEJO_TOKEN/token_env)"})
+			}
+		}
 	}
 
 	return findings
@@ -643,7 +761,7 @@ func checkGitHubPages(dir string) []finding {
 	}
 
 	var ghRemote string
-	for _, name := range cfg.Remotes {
+	for _, name := range cfg.RemoteNames() {
 		url, err := git.RemoteURL(dir, name)
 		if err != nil {
 			continue
@@ -980,7 +1098,7 @@ func checkVersionSection(dir string) section {
 	// 4. Remote tags
 	if cfg != nil && hasTag {
 		tagName := latest.String() // "vX.Y.Z"
-		for _, remote := range cfg.Remotes {
+		for _, remote := range cfg.RemoteNames() {
 			if !git.HasRemote(dir, remote) {
 				continue
 			}

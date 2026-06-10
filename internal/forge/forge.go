@@ -14,13 +14,15 @@ const (
 	GitHub  Type = "github"
 	GitLab  Type = "gitlab"
 	Forgejo Type = "forgejo"
+	None    Type = "none" // explicit "no release API" (e.g. a dumb mirror)
 	Unknown Type = "unknown"
 )
 
 // Forge holds the detected forge type for a repository.
 type Forge struct {
-	Type Type
-	URL  string // git remote URL used for API calls
+	Type     Type
+	URL      string // git remote URL used for API calls
+	TokenEnv string // env var holding the API token (Forgejo); empty = default chain
 }
 
 // Detect determines the forge from a config override or the git remote URL.
@@ -116,7 +118,52 @@ func detectFromURL(url string) Type {
 	}
 }
 
-// HasCLI returns true if the appropriate CLI tool is available in PATH.
+// APIToken returns the Forgejo/Gitea API token for this forge. If TokenEnv is
+// set, only that variable is consulted; otherwise the default chain is
+// CODEBERG_APIKEY, then FORGEJO_TOKEN, then GITEA_TOKEN.
+func (f Forge) APIToken() string {
+	if f.TokenEnv != "" {
+		return os.Getenv(f.TokenEnv)
+	}
+	for _, env := range []string{"CODEBERG_APIKEY", "FORGEJO_TOKEN", "GITEA_TOKEN"} {
+		if v := os.Getenv(env); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// tokenHint names the env var(s) consulted by APIToken, for error messages.
+func (f Forge) tokenHint() string {
+	if f.TokenEnv != "" {
+		return f.TokenEnv
+	}
+	return "CODEBERG_APIKEY/FORGEJO_TOKEN/GITEA_TOKEN"
+}
+
+// SupportsReleases returns true if the forge has a release API we can use.
+func (f Forge) SupportsReleases() bool {
+	switch f.Type {
+	case GitHub, GitLab, Forgejo:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsPublicHost returns true for hosts reachable by public infrastructure
+// such as proxy.golang.org (as opposed to a local/self-hosted forge).
+func IsPublicHost(host string) bool {
+	switch strings.ToLower(host) {
+	case "github.com", "gitlab.com", "codeberg.org", "gitea.com":
+		return true
+	default:
+		return false
+	}
+}
+
+// HasCLI returns true if the appropriate CLI tool is available in PATH
+// (or, for Forgejo, an API token is set).
 func (f Forge) HasCLI() bool {
 	switch f.Type {
 	case GitHub:
@@ -126,23 +173,37 @@ func (f Forge) HasCLI() bool {
 		_, err := exec.LookPath("glab")
 		return err == nil
 	case Forgejo:
-		return os.Getenv("CODEBERG_APIKEY") != ""
+		return f.APIToken() != ""
 	default:
 		return false
 	}
+}
+
+// repoFlag returns ["-R", "owner/repo"] (or host/owner/repo for non-github.com
+// hosts) so gh/glab target the right repo when several remotes exist.
+func (f Forge) repoFlag() []string {
+	host, owner, repo := ExtractOwnerRepo(f.URL)
+	if owner == "" || repo == "" {
+		return nil
+	}
+	spec := owner + "/" + repo
+	if !strings.EqualFold(host, "github.com") && !strings.EqualFold(host, "gitlab.com") {
+		spec = host + "/" + spec
+	}
+	return []string{"-R", spec}
 }
 
 // ListReleases returns release tag names from the forge.
 func (f Forge) ListReleases(dir string) ([]string, error) {
 	switch f.Type {
 	case GitHub:
-		return listReleasesGitHub(dir)
+		return listReleasesGitHub(dir, f.repoFlag())
 	case GitLab:
-		return listReleasesGitLab(dir)
+		return listReleasesGitLab(dir, f.repoFlag())
 	case Forgejo:
-		return listReleasesForgejo(f.URL)
+		return listReleasesForgejo(f.URL, f.APIToken())
 	default:
-		return nil, fmt.Errorf("unknown forge type %q", f.Type)
+		return nil, fmt.Errorf("forge type %q has no release API", f.Type)
 	}
 }
 
@@ -150,18 +211,23 @@ func (f Forge) ListReleases(dir string) ([]string, error) {
 func (f Forge) DeleteRelease(dir, tag string) error {
 	switch f.Type {
 	case GitHub:
-		return deleteReleaseGitHub(dir, tag)
+		return deleteReleaseGitHub(dir, tag, f.repoFlag())
 	case GitLab:
-		return deleteReleaseGitLab(dir, tag)
+		return deleteReleaseGitLab(dir, tag, f.repoFlag())
 	case Forgejo:
-		return deleteReleaseForgejo(f.URL, tag)
+		token := f.APIToken()
+		if token == "" {
+			return fmt.Errorf("no API token set (%s)", f.tokenHint())
+		}
+		return deleteReleaseForgejo(f.URL, tag, token)
 	default:
-		return fmt.Errorf("unknown forge type %q", f.Type)
+		return fmt.Errorf("forge type %q has no release API", f.Type)
 	}
 }
 
-func listReleasesGitHub(dir string) ([]string, error) {
-	cmd := exec.Command("gh", "release", "list", "--limit", "100", "--json", "tagName", "-q", ".[].tagName")
+func listReleasesGitHub(dir string, repoFlag []string) ([]string, error) {
+	args := append([]string{"release", "list", "--limit", "100", "--json", "tagName", "-q", ".[].tagName"}, repoFlag...)
+	cmd := exec.Command("gh", args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -174,8 +240,9 @@ func listReleasesGitHub(dir string) ([]string, error) {
 	return strings.Split(s, "\n"), nil
 }
 
-func deleteReleaseGitHub(dir, tag string) error {
-	cmd := exec.Command("gh", "release", "delete", tag, "--yes", "--cleanup-tag")
+func deleteReleaseGitHub(dir, tag string, repoFlag []string) error {
+	args := append([]string{"release", "delete", tag, "--yes", "--cleanup-tag"}, repoFlag...)
+	cmd := exec.Command("gh", args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -184,8 +251,9 @@ func deleteReleaseGitHub(dir, tag string) error {
 	return nil
 }
 
-func listReleasesGitLab(dir string) ([]string, error) {
-	cmd := exec.Command("glab", "release", "list", "--per-page", "100")
+func listReleasesGitLab(dir string, repoFlag []string) ([]string, error) {
+	args := append([]string{"release", "list", "--per-page", "100"}, repoFlag...)
+	cmd := exec.Command("glab", args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -211,8 +279,9 @@ func parseGLabReleaseList(output string) []string {
 	return tags
 }
 
-func deleteReleaseGitLab(dir, tag string) error {
-	cmd := exec.Command("glab", "release", "delete", tag, "-y", "--with-tag")
+func deleteReleaseGitLab(dir, tag string, repoFlag []string) error {
+	args := append([]string{"release", "delete", tag, "-y", "--with-tag"}, repoFlag...)
+	cmd := exec.Command("glab", args...)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

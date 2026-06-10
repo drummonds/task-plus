@@ -600,3 +600,78 @@ cleanup:
 		t.Errorf("KeepPatches = %d, want 3", cfg.Cleanup.KeepPatches)
 	}
 }
+
+func TestRemotesPlainStrings(t *testing.T) {
+	dir := t.TempDir()
+	yml := "remotes:\n  - origin\n  - github\n"
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte(yml), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.RemoteNames(); len(got) != 2 || got[0] != "origin" || got[1] != "github" {
+		t.Errorf("RemoteNames = %v, want [origin github]", got)
+	}
+	if !cfg.RemotesExplicit {
+		t.Error("RemotesExplicit = false, want true")
+	}
+}
+
+func TestRemotesMixedEntries(t *testing.T) {
+	dir := t.TempDir()
+	yml := `remotes:
+  - origin
+  - name: forgejo-local
+    forge: forgejo
+    token_env: HOMELAB_FORGEJO_TOKEN
+  - github
+release_remote: origin
+`
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte(yml), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.RemoteNames(); len(got) != 3 || got[1] != "forgejo-local" {
+		t.Errorf("RemoteNames = %v, want [origin forgejo-local github]", got)
+	}
+	spec := cfg.RemoteSpec("forgejo-local")
+	if spec.Forge != "forgejo" || spec.TokenEnv != "HOMELAB_FORGEJO_TOKEN" {
+		t.Errorf("RemoteSpec = %+v, want forge=forgejo token_env=HOMELAB_FORGEJO_TOKEN", spec)
+	}
+	// Unconfigured name → zero-value with name
+	if spec := cfg.RemoteSpec("nope"); spec.Name != "nope" || spec.Forge != "" {
+		t.Errorf("RemoteSpec(nope) = %+v", spec)
+	}
+	if cfg.GetReleaseRemote() != "origin" {
+		t.Errorf("GetReleaseRemote = %q, want origin", cfg.GetReleaseRemote())
+	}
+}
+
+func TestRemotesMapEntryMissingName(t *testing.T) {
+	dir := t.TempDir()
+	yml := "remotes:\n  - forge: forgejo\n"
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte(yml), 0644)
+
+	if _, err := Load(dir); err == nil {
+		t.Error("Load succeeded, want error for map entry without name")
+	}
+}
+
+func TestRemotesNotExplicitWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("type: library\n"), 0644)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RemotesExplicit {
+		t.Error("RemotesExplicit = true, want false")
+	}
+	if got := cfg.RemoteNames(); len(got) != 1 || got[0] != "origin" {
+		t.Errorf("RemoteNames = %v, want [origin] default", got)
+	}
+}

@@ -207,8 +207,13 @@ check: [task check]     # commands to run first
 changelog_format: keepachangelog  # or "simple"
 wasm: []                # optional WASM build commands
 goreleaser_config: .goreleaser.yaml
-forge: github           # override auto-detected forge (github, gitlab, forgejo)
-release_remote: github  # remote for release cleanup (default: first in remotes)
+forge: github           # forge override for the release remote (github, gitlab, forgejo)
+release_remote: github  # remote whose forge drives goreleaser/proxy decisions (default: first in remotes)
+remotes:                # git remotes pushed to during release (default: [origin])
+  - origin              # plain string for recognised hosts
+  - name: forgejo-local # map form for hosts that need overrides
+    forge: forgejo      # github, gitlab, forgejo, or none (dumb mirror, no release API)
+    token_env: HOMELAB_FORGEJO_TOKEN  # env var holding this host's API token
 install: true           # auto-run "go install" (skip prompt; omit to be asked)
 cleanup:
   keep_patches: 2       # per minor version
@@ -222,7 +227,26 @@ pages_deploy:                   # deploy docs during release (multiple targets s
 
 All fields optional — sensible defaults are auto-detected.
 
-For Codeberg/Forgejo release cleanup, set `CODEBERG_APIKEY` in your environment.
+### Forge arrangements
+
+`tp release` supports Codeberg + GitHub mirror, GitHub only, Codeberg only, and
+self-hosted Forgejo setups. Run the interactive interview to identify your
+arrangement and write it to `task-plus.yml`:
+
+```bash
+tp check --setup
+```
+
+Release cleanup deletes old releases on every configured remote whose forge is
+reachable (gh/glab CLI or Forgejo API token). GitHub/GitLab commands are pinned
+to the right repo via `-R owner/repo` derived from each remote's URL.
+
+**Forgejo/Codeberg API tokens:** if a remote sets `token_env`, only that
+variable is used. Otherwise the default chain is `CODEBERG_APIKEY`, then
+`FORGEJO_TOKEN`, then `GITEA_TOKEN`. Goreleaser publishing to a Forgejo host
+(`release: gitea:` block) expects `GITEA_TOKEN`; `tp release` passes the forge
+token automatically when it's unset. Self-hosted GitLab additionally needs
+`glab` host configuration — not managed by tp.
 
 ### Documentation Deployment
 

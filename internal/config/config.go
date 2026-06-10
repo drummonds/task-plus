@@ -16,6 +16,47 @@ type CleanupConfig struct {
 	KeepMinors  int `yaml:"keep_minors"`
 }
 
+// Remote is one entry in the remotes list. In YAML it may be a plain string
+// ("origin") or a map with name/forge/token_env for hosts that need overrides:
+//
+//	remotes:
+//	  - origin
+//	  - name: forgejo-local
+//	    forge: forgejo
+//	    token_env: HOMELAB_FORGEJO_TOKEN
+type Remote struct {
+	Name     string `yaml:"name"`
+	Forge    string `yaml:"forge,omitempty"`     // override: github|gitlab|forgejo|none
+	TokenEnv string `yaml:"token_env,omitempty"` // env var holding the API token (forgejo)
+}
+
+// UnmarshalYAML accepts either a scalar remote name or a mapping.
+func (r *Remote) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		r.Name = node.Value
+		return nil
+	}
+	type plain Remote // avoid recursion
+	var p plain
+	if err := node.Decode(&p); err != nil {
+		return err
+	}
+	if p.Name == "" {
+		return fmt.Errorf("remotes entry missing 'name' field")
+	}
+	*r = Remote(p)
+	return nil
+}
+
+// MarshalYAML emits a plain scalar when only the name is set.
+func (r Remote) MarshalYAML() (any, error) {
+	if r.Forge == "" && r.TokenEnv == "" {
+		return r.Name, nil
+	}
+	type plain Remote
+	return plain(r), nil
+}
+
 type Config struct {
 	Type             string          `yaml:"type"`
 	Languages        []string        `yaml:"languages"`
@@ -27,7 +68,8 @@ type Config struct {
 	GoreleaserConfig string          `yaml:"goreleaser_config"`
 	Forge            string          `yaml:"forge"`
 	ReleaseRemote    string          `yaml:"release_remote"`
-	Remotes          []string        `yaml:"remotes"`
+	Remotes          []Remote        `yaml:"remotes"`
+	RemotesExplicit  bool            `yaml:"-"` // true when remotes key was present in the file
 	Cleanup          CleanupConfig   `yaml:"cleanup"`
 	Fork             *bool           `yaml:"fork"`
 	Pypi             *bool           `yaml:"pypi"`
@@ -65,6 +107,7 @@ func Init(dir string) error {
 # changelog_format: keepachangelog  # or "simple"
 # install: true           # auto-run "go install" after release
 # remotes: [origin]       # git remotes to push to (default: origin)
+#                         # run "tp check --setup" to configure remotes/forges interactively
 
 pages_deploy:
   - type: statichost
@@ -87,6 +130,7 @@ func Load(dir string) (*Config, error) {
 			return nil, err
 		}
 	}
+	c.RemotesExplicit = len(c.Remotes) > 0
 
 	c.applyDefaults()
 	return c, nil
@@ -118,7 +162,7 @@ func (c *Config) applyDefaults() {
 		c.Cleanup.KeepMinors = 5
 	}
 	if len(c.Remotes) == 0 {
-		c.Remotes = []string{"origin"}
+		c.Remotes = []Remote{{Name: "origin"}}
 	}
 	if c.InstallRetries == 0 {
 		c.InstallRetries = 3
@@ -495,7 +539,27 @@ func (c *Config) PrimaryRemote() string {
 	if len(c.Remotes) == 0 {
 		return "origin"
 	}
-	return c.Remotes[0]
+	return c.Remotes[0].Name
+}
+
+// RemoteNames returns the configured remote names in order.
+func (c *Config) RemoteNames() []string {
+	names := make([]string, len(c.Remotes))
+	for i, r := range c.Remotes {
+		names[i] = r.Name
+	}
+	return names
+}
+
+// RemoteSpec returns the configured entry for a remote name, or a zero-value
+// Remote with just the name when it isn't configured.
+func (c *Config) RemoteSpec(name string) Remote {
+	for _, r := range c.Remotes {
+		if r.Name == name {
+			return r
+		}
+	}
+	return Remote{Name: name}
 }
 
 // GetReleaseRemote returns the remote name used for forge release operations.
