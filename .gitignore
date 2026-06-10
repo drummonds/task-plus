@@ -9,3 +9,16 @@ docs/*.html
 .tp-release-comment
 .task/
 /task-plus
+
+# Sandbox/worktree environment artifacts
+.bash_profile
+.bashrc
+.claude/
+.gitconfig
+.gitmodules
+.idea
+.mcp.json
+.profile
+.ripgreprc
+.zprofile
+.zshrc
