@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.79] - 2026-06-22
+
+ - tp wt: detect host editor (VS Code/VSCodium/Insiders) instead of hardcoding code
+
  - Multi-forge release arrangements: Codeberg + GitHub mirror, GitHub only, Codeberg only, and self-hosted Forgejo
  - `tp check --setup`: interactive interview that identifies the remote/forge arrangement and writes it to task-plus.yml
  - `remotes:` entries may now be maps with `forge:` and `token_env:` overrides (plain strings still work)
