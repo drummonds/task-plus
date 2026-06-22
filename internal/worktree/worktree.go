@@ -141,12 +141,14 @@ func runStart(args []string) error {
 		}
 	}
 
-	// Open VS Code — use --add to add as workspace folder instead of new window
-	if _, err := exec.LookPath("code"); err == nil {
-		fmt.Printf("Opening VS Code workspace folder %s\n", wtPath)
-		_ = exec.Command("code", "--add", wtPath).Run()
+	// Open the editor — use --add to add as a workspace folder instead of a new
+	// window. DetectEditor picks the editor hosting this terminal (code/codium)
+	// so --add connects to the running instance over its inherited IPC socket.
+	if ed, ok := vscode.DetectEditor(); ok {
+		fmt.Printf("Opening %s workspace folder %s\n", ed.Cmd, wtPath)
+		_ = exec.Command(ed.Cmd, "--add", wtPath).Run()
 	} else {
-		fmt.Printf("Worktree ready at %s (VS Code 'code' not found in PATH)\n", wtPath)
+		fmt.Printf("Worktree ready at %s (no VS Code-family editor found in PATH)\n", wtPath)
 	}
 
 	return nil
@@ -387,15 +389,14 @@ func runClean(args []string) error {
 	return nil
 }
 
-// closeVSCodeFolder removes a folder from the current VS Code workspace.
+// closeVSCodeFolder removes a folder from the current editor workspace.
 func closeVSCodeFolder(wtPath string) {
-	codePath, err := exec.LookPath("code")
-	if err != nil {
+	ed, ok := vscode.DetectEditor()
+	if !ok {
 		return
 	}
-	// URI-encode the path for the --remove flag
-	fmt.Printf("Closing VS Code workspace folder %s\n", wtPath)
-	_ = exec.Command(codePath, "--remove", wtPath).Run()
+	fmt.Printf("Closing %s workspace folder %s\n", ed.Cmd, wtPath)
+	_ = exec.Command(ed.Cmd, "--remove", wtPath).Run()
 }
 
 func runList(args []string) error {

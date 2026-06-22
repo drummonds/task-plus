@@ -13,8 +13,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// stateDBPath returns the path to VS Code's state.vscdb.
-func stateDBPath() string {
+// stateDBPath returns the path to the editor's state.vscdb, where editorConfigDir
+// is the editor's config dir name under $XDG_CONFIG_HOME (e.g. "Code", "VSCodium").
+func stateDBPath(editorConfigDir string) string {
 	configDir := os.Getenv("XDG_CONFIG_HOME")
 	if configDir == "" {
 		home, err := os.UserHomeDir()
@@ -23,13 +24,17 @@ func stateDBPath() string {
 		}
 		configDir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(configDir, "Code", "User", "globalStorage", "state.vscdb")
+	return filepath.Join(configDir, editorConfigDir, "User", "globalStorage", "state.vscdb")
 }
 
-// RemoveFromRecent removes a folder path from VS Code's recently opened list.
-// All errors are silently ignored — this is best-effort cleanup.
+// RemoveFromRecent removes a folder path from the recently opened list of the
+// detected VS Code-family editor. All errors are best-effort cleanup.
 func RemoveFromRecent(folderPath string) error {
-	dbPath := stateDBPath()
+	ed, ok := DetectEditor()
+	if !ok {
+		return fmt.Errorf("no VS Code-family editor found")
+	}
+	dbPath := stateDBPath(ed.ConfigDir)
 	if dbPath == "" {
 		return fmt.Errorf("cannot determine VS Code state path")
 	}

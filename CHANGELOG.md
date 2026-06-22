@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
  - Goreleaser: release target validated against configured remotes; Forgejo token passed as `GITEA_TOKEN` when needed
  - Go proxy poke skipped for module paths the public proxy cannot reach
  - Note: rewriting `remotes:` via `tp check --setup`/`tp repos add|remove` drops comments inside that block only
+ - `tp wt`: detect the editor hosting the terminal (VS Code vs VSCodium vs Insiders) instead of hardcoding `code`, so `wt start`/`wt clean` open and close the worktree folder and clean the recent list correctly on Codium
 
 ## [0.1.78] - 2026-05-10
 
