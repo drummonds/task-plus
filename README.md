@@ -2,7 +2,7 @@
 
 Go CLI tool that standardizes common development workflows across repositories.
 
-<!-- auto:version -->Latest: v0.1.79<!-- /auto:version -->
+<!-- auto:version -->Latest: v0.1.80<!-- /auto:version -->
 
 Try https://h3-task-plus.statichost.page/ for documentation.
 
