@@ -165,18 +165,20 @@ tp md_update --dst docs docs/index.md   # explicit pages directory
 Manage git worktrees for running Claude tasks in isolation. Each worktree gets its own branch (`task/<name>`), sandbox settings, and VS Code configuration. Task names are auto-prefixed with `WT` (e.g. `demo` → `WTdemo`, worktree dir `project-WTdemo`).
 
 ```bash
-tp wt start my-feature             # create worktree, open as VS Code workspace folder
+tp wt start my-feature             # create worktree, add it to the project .code-workspace
 tp wt start my-feature /c          # shorthand: create, work, then clean up (delegates to wt clean)
 tp wt agent my-feature --spec="implement login"  # register agent + run claude
 tp wt review my-feature            # diff task branch against main
 tp wt merge my-feature             # merge branch and remove worktree
-tp wt clean my-feature             # merge, close VS Code, remove from recent list, clean up
+tp wt clean my-feature             # merge, remove from workspace + recent list, clean up
 tp wt list                         # list active worktrees
 tp wt dashboard                    # agent dashboard (web UI; --term for terminal)
 tp wt --init                       # print Taskfile snippets for wt: tasks
 ```
 
 Task names "doc" and "docs" are reserved (they clash with the `-docs` repo convention).
+
+**Editor integration.** `wt` keeps a `<project>.code-workspace` file beside the repo, listing the main checkout plus every active worktree. Open that workspace once in your editor — `wt start` then makes new worktrees appear inside that window and `wt clean` makes them disappear, with no extra windows. This works without relying on the editor's CLI control socket (often missing outside the integrated terminal, and absent entirely on some VSCodium setups). When a live control socket *is* reachable, `wt` additionally pushes `--add`/`--remove` straight into the running window, so plain folder windows update too.
 
 ### `tp claude`
 

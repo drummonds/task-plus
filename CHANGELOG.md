@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+ - `tp wt`: reliably surface worktrees in VS Code/VSCodium without depending on the editor's CLI control socket. `wt start`/`wt clean` now maintain a `<project>.code-workspace` file (root + active worktrees) that the editor reflects live, so worktrees appear/disappear in one window instead of spawning new ones. When a live control socket is reachable it is recovered (from `VSCODE_IPC_HOOK_CLI` or a discovered `vscode-ipc-*.sock`) and `--add`/`--remove` are still pushed into the running window.
+
 ## [0.1.79] - 2026-06-22
 
  - tp wt: detect host editor (VS Code/VSCodium/Insiders) instead of hardcoding code

@@ -141,17 +141,53 @@ func runStart(args []string) error {
 		}
 	}
 
-	// Open the editor — use --add to add as a workspace folder instead of a new
-	// window. DetectEditor picks the editor hosting this terminal (code/codium)
-	// so --add connects to the running instance over its inherited IPC socket.
-	if ed, ok := vscode.DetectEditor(); ok {
-		fmt.Printf("Opening %s workspace folder %s\n", ed.Cmd, wtPath)
-		_ = exec.Command(ed.Cmd, "--add", wtPath).Run()
-	} else {
+	openInEditor(dir, projName, wtPath)
+	return nil
+}
+
+// openInEditor surfaces the worktree in a VS Code-family editor using whichever
+// method is available, best UX first:
+//
+//  1. If a live editor instance is reachable over its CLI control socket, add
+//     the folder straight into the running window (--add).
+//  2. Otherwise drive the project's .code-workspace file, which the editor
+//     reflects live in whichever window has it open — this needs no IPC and is
+//     the reliable path when the control socket is missing.
+//
+// The workspace file is kept up to date in both cases so the folder persists.
+func openInEditor(dir, projName, wtPath string) {
+	ed, ok := vscode.DetectEditor()
+	if !ok {
 		fmt.Printf("Worktree ready at %s (no VS Code-family editor found in PATH)\n", wtPath)
+		return
 	}
 
-	return nil
+	repoRoot, err := repoToplevel(dir)
+	if err != nil {
+		// Without the repo root we can't build the workspace file; fall back to
+		// a plain --add (may open a new window if no instance is reachable).
+		_ = ed.Run("--add", wtPath)
+		return
+	}
+	wsPath := vscode.WorkspacePath(repoRoot, projName)
+	created, werr := vscode.AddWorktreeFolder(wsPath, repoRoot, wtPath)
+	if werr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: workspace file: %v\n", werr)
+	}
+
+	if vscode.IPCSocket() != "" {
+		fmt.Printf("Adding %s folder %s to the running window\n", ed.Cmd, wtPath)
+		_ = ed.Run("--add", wtPath)
+		return
+	}
+
+	if created {
+		fmt.Printf("Opening workspace %s\n", wsPath)
+		_ = ed.Run(wsPath)
+		return
+	}
+	fmt.Printf("Added %s to workspace %s\n", wtPath, wsPath)
+	fmt.Printf("  Open %s in %s — new worktrees appear there automatically.\n", filepath.Base(wsPath), ed.Cmd)
 }
 
 // runAgent registers a worktree with the agent dashboard and optionally runs claude.
@@ -366,7 +402,7 @@ func runClean(args []string) error {
 	saveReleaseComment(dir, commitMsg)
 
 	// 2. Close VS Code workspace folder (before removing worktree directory)
-	closeVSCodeFolder(wtPath)
+	closeVSCodeFolder(dir, projName, wtPath)
 
 	// 3. Remove from VS Code recently opened list
 	if err := vscode.RemoveFromRecent(wtPath); err != nil {
@@ -389,14 +425,24 @@ func runClean(args []string) error {
 	return nil
 }
 
-// closeVSCodeFolder removes a folder from the current editor workspace.
-func closeVSCodeFolder(wtPath string) {
+// closeVSCodeFolder removes a worktree folder from the editor: from the project
+// .code-workspace file (reflected live in any window that has it open) and,
+// when a live instance is reachable, from the running window via --remove.
+func closeVSCodeFolder(dir, projName, wtPath string) {
 	ed, ok := vscode.DetectEditor()
 	if !ok {
 		return
 	}
-	fmt.Printf("Closing %s workspace folder %s\n", ed.Cmd, wtPath)
-	_ = exec.Command(ed.Cmd, "--remove", wtPath).Run()
+	if repoRoot, err := repoToplevel(dir); err == nil {
+		wsPath := vscode.WorkspacePath(repoRoot, projName)
+		if err := vscode.RemoveWorktreeFolder(wsPath, wtPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: workspace file: %v\n", err)
+		}
+	}
+	if vscode.IPCSocket() != "" {
+		fmt.Printf("Removing %s folder %s from the running window\n", ed.Cmd, wtPath)
+		_ = ed.Run("--remove", wtPath)
+	}
 }
 
 func runList(args []string) error {
@@ -495,11 +541,20 @@ func parseTaskArgs(args []string) (task, dir string, err error) {
 }
 
 func projectName(dir string) (string, error) {
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	top, err := repoToplevel(dir)
 	if err != nil {
 		return "", fmt.Errorf("not a git repository: %w", err)
 	}
-	return filepath.Base(strings.TrimSpace(string(out))), nil
+	return filepath.Base(top), nil
+}
+
+// repoToplevel returns the absolute path of the main working tree root for dir.
+func repoToplevel(dir string) (string, error) {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func worktreePath(dir, projName, task string) string {
