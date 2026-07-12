@@ -64,7 +64,7 @@ var sandboxStubs = []string{
 // Run dispatches wt sub-subcommands.
 func Run(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: task-plus wt <start|agent|review|merge|clean|list|dashboard|--init>")
+		return fmt.Errorf("usage: task-plus wt <start|agent|review|clean|list|dashboard|--init>")
 	}
 
 	switch args[0] {
@@ -74,8 +74,6 @@ func Run(args []string) error {
 		return runAgent(args[1:])
 	case "review":
 		return runReview(args[1:])
-	case "merge":
-		return runMerge(args[1:])
 	case "clean":
 		return runClean(args[1:])
 	case "list":
@@ -86,7 +84,7 @@ func Run(args []string) error {
 		printInit()
 		return nil
 	default:
-		return fmt.Errorf("unknown wt command: %s\nUsage: task-plus wt <start|agent|review|merge|clean|list|dashboard|--init>", args[0])
+		return fmt.Errorf("unknown wt command: %s\nUsage: task-plus wt <start|agent|review|clean|list|dashboard|--init>", args[0])
 	}
 }
 
@@ -308,55 +306,19 @@ func runReview(args []string) error {
 	return cmd.Run()
 }
 
-func runMerge(args []string) error {
-	if err := rejectIfInsideWorktree(); err != nil {
-		return err
-	}
-
-	task, dir, err := parseTaskArgs(args)
-	if err != nil {
-		return err
-	}
-
-	projName, err := projectName(dir)
-	if err != nil {
-		return err
-	}
-
-	wtPath := worktreePath(dir, projName, task)
-	branch := "task/" + task
-
-	// Check for uncommitted changes before merging
-	if dirty, _ := isDirty(dir); dirty {
-		return fmt.Errorf("working tree has uncommitted changes — commit or discard them before merge")
-	}
-
-	// Capture last commit subject before merging
-	commitMsg := lastCommitSubject(dir, branch)
-
-	fmt.Printf("Merging %s into current branch\n", branch)
-	if err := git(dir, "merge", branch); err != nil {
-		return fmt.Errorf("merge: %w", err)
-	}
-
-	saveReleaseComment(dir, commitMsg)
-
-	fmt.Printf("Removing worktree at %s\n", wtPath)
-	if err := git(dir, "worktree", "remove", wtPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: worktree remove: %v\n", err)
-	}
-	invalidateLintCache()
-
-	if err := git(dir, "branch", "-d", branch); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: branch delete: %v\n", err)
-	}
-
-	return nil
-}
-
+// runClean merges a task branch and dismantles its worktree: workspace folder,
+// recent-list entry, worktree directory, and branch. It confirms interactively
+// unless --yes/-y is given (for agents and scripts).
 func runClean(args []string) error {
 	if err := rejectIfInsideWorktree(); err != nil {
 		return err
+	}
+
+	yes := false
+	for _, a := range args {
+		if a == "--yes" || a == "-y" {
+			yes = true
+		}
 	}
 
 	task, dir, err := parseTaskArgs(args)
@@ -381,7 +343,7 @@ func runClean(args []string) error {
 	fmt.Printf("  5. Delete branch %s\n", branch)
 	fmt.Println()
 
-	if !prompt.Confirm("Proceed?") {
+	if !yes && !prompt.Confirm("Proceed?") {
 		fmt.Println("Aborted.")
 		return nil
 	}
@@ -598,8 +560,8 @@ func invalidateLintCache() {
 }
 
 // rejectIfInsideWorktree returns an error if cwd is inside a git worktree
-// (as opposed to the main working tree). This prevents commands like clean
-// and merge from operating on the tree they're standing in.
+// (as opposed to the main working tree). This prevents clean from operating
+// on the tree it is standing in.
 func rejectIfInsideWorktree() error {
 	gitDir, err := exec.Command("git", "rev-parse", "--git-dir").Output()
 	if err != nil {
@@ -735,7 +697,6 @@ func printInit() {
 #   task wt:start TASK=my-feature       -> worktree WTmy-feature
 #   task wt:agent TASK=my-feature SPEC="implement the login page"
 #   task wt:review TASK=my-feature
-#   task wt:merge TASK=my-feature
 #   task wt:clean TASK=my-feature
 #   task wt:list
 #   task wt:dashboard
@@ -760,13 +721,6 @@ func printInit() {
       vars: [TASK]
     cmds:
       - task-plus wt review {{.TASK}}
-
-  wt:merge:
-    desc: Merge task branch and remove worktree
-    requires:
-      vars: [TASK]
-    cmds:
-      - task-plus wt merge {{.TASK}}
 
   wt:clean:
     desc: Merge branch, close VS Code, remove from recent list, remove worktree, delete branch

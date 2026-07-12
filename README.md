@@ -169,8 +169,8 @@ tp wt start my-feature             # create worktree, add it to the project .cod
 tp wt start my-feature /c          # shorthand: create, work, then clean up (delegates to wt clean)
 tp wt agent my-feature --spec="implement login"  # register agent + run claude
 tp wt review my-feature            # diff task branch against main
-tp wt merge my-feature             # merge branch and remove worktree
 tp wt clean my-feature             # merge, remove from workspace + recent list, clean up
+tp wt clean my-feature --yes       # same, skipping the confirmation (for agents/scripts)
 tp wt list                         # list active worktrees
 tp wt dashboard                    # agent dashboard (web UI; --term for terminal)
 tp wt --init                       # print Taskfile snippets for wt: tasks

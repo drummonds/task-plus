@@ -30,7 +30,7 @@ task-plus wt dashboard --term   # terminal table
 2. **In the VS Code terminal: `task-plus claude`** — verifies worktree sandbox is active (restricts access to ~/.ssh, ~/.aws, etc.), then runs `claude --dangerously-skip-permissions`
 3. Work interactively with Claude in the sandboxed worktree
 4. **`task-plus wt review add-login`** — review the diff
-5. **`task-plus wt merge add-login`** — merge and clean up
+5. **`task-plus wt clean add-login`** — merge and clean up
 
 Or use the `/c` shorthand to create and clean up in one flow: **`task-plus wt start add-login /c`**
 
@@ -71,8 +71,7 @@ flowchart TD
 | `wt start NAME /c` | Shorthand: delegates to `wt clean NAME` |
 | `wt agent NAME [--spec="PROMPT"]` | Run Claude agent in worktree (registers with dashboard) |
 | `wt review NAME` | Show diff between main and the task branch |
-| `wt merge NAME` | Merge task branch into current branch, remove worktree |
-| `wt clean NAME` | Merge branch, close VS Code folder, remove from recent list, remove worktree, delete branch |
+| `wt clean NAME [--yes]` | Merge branch, close VS Code folder, remove from recent list, remove worktree, delete branch; `--yes`/`-y` skips the confirmation |
 | `wt list` | List all git worktrees |
 | `wt dashboard [--term]` | Live dashboard of running agents |
 | `wt --init` | Print Taskfile.yml snippets for all wt commands |
@@ -138,7 +137,6 @@ Run `task-plus wt --init` to get copy-paste Taskfile snippets. The `task wt:*` c
 task wt:start TASK=my-feature
 task wt:agent TASK=my-feature SPEC="implement the login page"
 task wt:review TASK=my-feature
-task wt:merge TASK=my-feature
 task wt:clean TASK=my-feature
 task wt:list
 task wt:dashboard
