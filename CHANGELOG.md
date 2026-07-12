@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
  - `tp wt clean`: new `--yes`/`-y` flag skips the confirmation prompt, for agents and scripts
  - Removed `tp wt merge` — use `tp wt clean` (same merge plus editor cleanup; `merge` left stale folders in the `.code-workspace` file). `wt --init` no longer emits a `wt:merge` task
  - `tp wt clean`: clear the golangci-lint cache after removing a worktree, so stale cached findings from the deleted path can't abort `tp release` in sibling worktrees
+ - `tp wt clean`: quieter output — an editor with no recently-opened list (e.g. some VSCodium setups) no longer triggers a spurious warning, and the recent-list line is only printed when an entry was actually removed
 
 ## [0.1.80] - 2026-06-26
 

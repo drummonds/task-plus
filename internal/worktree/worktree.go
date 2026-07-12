@@ -368,9 +368,9 @@ func runClean(args []string) error {
 	closeVSCodeFolder(dir, projName, wtPath)
 
 	// 3. Remove from VS Code recently opened list
-	if err := vscode.RemoveFromRecent(wtPath); err != nil {
+	if removed, err := vscode.RemoveFromRecent(wtPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: VS Code recent list: %v\n", err)
-	} else {
+	} else if removed {
 		fmt.Printf("Removed from VS Code recently opened list\n")
 	}
 

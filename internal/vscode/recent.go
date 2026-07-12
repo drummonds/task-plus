@@ -4,6 +4,7 @@ package vscode
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -28,23 +29,25 @@ func stateDBPath(editorConfigDir string) string {
 }
 
 // RemoveFromRecent removes a folder path from the recently opened list of the
-// detected VS Code-family editor. All errors are best-effort cleanup.
-func RemoveFromRecent(folderPath string) error {
+// detected VS Code-family editor. It reports whether an entry was removed.
+// An absent recent list (some editors never persist one) is not an error.
+// All errors are best-effort cleanup.
+func RemoveFromRecent(folderPath string) (bool, error) {
 	ed, ok := DetectEditor()
 	if !ok {
-		return fmt.Errorf("no VS Code-family editor found")
+		return false, fmt.Errorf("no VS Code-family editor found")
 	}
 	dbPath := stateDBPath(ed.ConfigDir)
 	if dbPath == "" {
-		return fmt.Errorf("cannot determine VS Code state path")
+		return false, fmt.Errorf("cannot determine VS Code state path")
 	}
 	if _, err := os.Stat(dbPath); err != nil {
-		return fmt.Errorf("state.vscdb not found: %w", err)
+		return false, fmt.Errorf("state.vscdb not found: %w", err)
 	}
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return fmt.Errorf("open state.vscdb: %w", err)
+		return false, fmt.Errorf("open state.vscdb: %w", err)
 	}
 	defer func() { _ = db.Close() }()
 
@@ -52,24 +55,27 @@ func RemoveFromRecent(folderPath string) error {
 
 	var raw string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", key).Scan(&raw)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil // no recent list at all — nothing to remove
+	}
 	if err != nil {
-		return fmt.Errorf("read recent paths: %w", err)
+		return false, fmt.Errorf("read recent paths: %w", err)
 	}
 
 	// Parse as generic JSON to tolerate format changes.
 	var data map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
-		return fmt.Errorf("parse recent paths JSON: %w", err)
+		return false, fmt.Errorf("parse recent paths JSON: %w", err)
 	}
 
 	entriesRaw, ok := data["entries"]
 	if !ok {
-		return fmt.Errorf("no entries key in recent paths")
+		return false, fmt.Errorf("no entries key in recent paths")
 	}
 
 	var entries []map[string]json.RawMessage
 	if err := json.Unmarshal(entriesRaw, &entries); err != nil {
-		return fmt.Errorf("parse entries array: %w", err)
+		return false, fmt.Errorf("parse entries array: %w", err)
 	}
 
 	// Build the URI we're looking for.
@@ -86,27 +92,27 @@ func RemoveFromRecent(folderPath string) error {
 	}
 
 	if removed == 0 {
-		return nil // nothing to do
+		return false, nil // nothing to do
 	}
 
 	// Marshal back.
 	newEntries, err := json.Marshal(filtered)
 	if err != nil {
-		return fmt.Errorf("marshal filtered entries: %w", err)
+		return false, fmt.Errorf("marshal filtered entries: %w", err)
 	}
 	data["entries"] = newEntries
 
 	newJSON, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("marshal recent paths: %w", err)
+		return false, fmt.Errorf("marshal recent paths: %w", err)
 	}
 
 	_, err = db.Exec("UPDATE ItemTable SET value = ? WHERE key = ?", string(newJSON), key)
 	if err != nil {
-		return fmt.Errorf("write recent paths: %w", err)
+		return false, fmt.Errorf("write recent paths: %w", err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // matchesPath checks whether a recently-opened entry refers to the given path.
