@@ -345,6 +345,7 @@ func runMerge(args []string) error {
 	if err := git(dir, "worktree", "remove", wtPath); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: worktree remove: %v\n", err)
 	}
+	invalidateLintCache()
 
 	if err := git(dir, "branch", "-d", branch); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: branch delete: %v\n", err)
@@ -416,6 +417,7 @@ func runClean(args []string) error {
 	if err := git(dir, "worktree", "remove", wtPath, "--force"); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: worktree remove: %v\n", err)
 	}
+	invalidateLintCache()
 
 	// 5. Delete branch
 	if err := git(dir, "branch", "-d", branch); err != nil {
@@ -572,6 +574,27 @@ func git(dir string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// invalidateLintCache clears the golangci-lint cache after a worktree is
+// removed. golangci-lint's cache is content-keyed and shared across worktrees
+// (GOCACHE is global, and worktrees at the same commit have identical source),
+// so a cached finding records the absolute path of whichever worktree populated
+// it first. Once that worktree is deleted, a later lint run in a sibling
+// worktree is served the stale finding, but its nolint/generated-file
+// post-processors can't re-open the missing file — so //nolint suppressions
+// silently fail and a phantom failure aborts `tp release`. The cache is
+// content-keyed (not path-indexed) with no supported way to evict a single
+// worktree's entries, so we clear it wholesale. Worktree removal is infrequent
+// and the only cost is one slower lint afterwards. Best-effort: skipped when
+// golangci-lint isn't installed, never fatal.
+func invalidateLintCache() {
+	if _, err := exec.LookPath("golangci-lint"); err != nil {
+		return
+	}
+	if err := exec.Command("golangci-lint", "cache", "clean").Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: golangci-lint cache clean: %v\n", err)
+	}
 }
 
 // rejectIfInsideWorktree returns an error if cwd is inside a git worktree
