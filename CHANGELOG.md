@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.83] - 2026-07-12
+
+ - Updated git secrets
+
 ## [0.1.82] - 2026-07-12
 
  - Adding goreleaser to local
