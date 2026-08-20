@@ -1,4 +1,5 @@
 dist/
+bin/
 .claude/settings.json
 .vscode
 
