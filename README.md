@@ -2,7 +2,7 @@
 
 Go CLI tool that standardizes common development workflows across repositories.
 
-<!-- auto:version -->Latest: v0.1.83<!-- /auto:version -->
+<!-- auto:version -->Latest: v0.1.84<!-- /auto:version -->
 
 Try https://task-plus.docs.bytestone.uk/ for documentation.
 
