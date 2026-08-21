@@ -106,6 +106,7 @@ tp repos              # show configured and available remotes
 tp repos info         # same as above
 tp repos add <name>   # add a git remote to the release push list
 tp repos remove <name> # remove a remote from the release push list
+tp repos archive <name> # archive (freeze read-only) the remote's repo on its forge
 ```
 
 ### `tp pages`

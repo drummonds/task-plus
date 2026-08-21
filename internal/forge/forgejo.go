@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -54,6 +55,33 @@ func listReleasesForgejo(remoteURL, token string) ([]string, error) {
 		tags = append(tags, r.TagName)
 	}
 	return tags, nil
+}
+
+// archiveRepoForgejo sets the repository's archived (read-only) flag.
+func archiveRepoForgejo(remoteURL, token string, archived bool) error {
+	host, owner, repo := ExtractOwnerRepo(remoteURL)
+	if owner == "" || repo == "" {
+		return fmt.Errorf("cannot parse owner/repo from %q", remoteURL)
+	}
+	apiURL := fmt.Sprintf("https://%s/api/v1/repos/%s/%s", host, owner, repo)
+	body := strings.NewReader(fmt.Sprintf(`{"archived": %t}`, archived))
+	req, err := http.NewRequest("PATCH", apiURL, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "token "+token)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("forgejo API: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("forgejo API archive: %s %s", resp.Status, respBody)
+	}
+	return nil
 }
 
 func deleteReleaseForgejo(remoteURL, tag, token string) error {

@@ -193,6 +193,31 @@ func (f Forge) repoFlag() []string {
 	return []string{"-R", spec}
 }
 
+// Archive marks the repository archived (read-only) on the forge.
+func (f Forge) Archive(dir string) error {
+	switch f.Type {
+	case GitHub:
+		_, owner, repo := ExtractOwnerRepo(f.URL)
+		if owner == "" || repo == "" {
+			return fmt.Errorf("cannot parse owner/repo from %q", f.URL)
+		}
+		cmd := exec.Command("gh", "repo", "archive", owner+"/"+repo, "--yes")
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("gh repo archive: %w\n%s", err, out)
+		}
+		return nil
+	case Forgejo:
+		token := f.APIToken()
+		if token == "" {
+			return fmt.Errorf("no API token set (%s)", f.tokenHint())
+		}
+		return archiveRepoForgejo(f.URL, token, true)
+	default:
+		return fmt.Errorf("forge type %q does not support archiving", f.Type)
+	}
+}
+
 // ListReleases returns release tag names from the forge.
 func (f Forge) ListReleases(dir string) ([]string, error) {
 	switch f.Type {

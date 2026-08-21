@@ -51,7 +51,7 @@ var commands = []struct {
 	{"release", "Interactive release workflow (runs Taskfile post:release if present)"},
 	{"release:rc-setup", "Add rc_site to pages_deploy targets in task-plus.yml"},
 	{"release:version-update", "Scaffold a Taskfile task to update version strings (--init)"},
-	{"repos", "Manage git remotes for release (info, add, remove)"},
+	{"repos", "Manage git remotes for release (info, add, remove, archive)"},
 	{"pages", "Serve docs/ directory over HTTP (subcommands: deploy, promote, config, combine)"},
 	{"md2html", "Convert markdown files to Bulma-styled HTML"},
 	{"md_update", "Update auto-marker sections in a markdown file (toc, pages, links)"},
@@ -814,11 +814,46 @@ func runRepos(args []string) {
 			os.Exit(1)
 		}
 		reposRemove(absDir, args[1])
+	case "archive":
+		if len(args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: task-plus repos archive <remote-name>\n")
+			os.Exit(1)
+		}
+		reposArchive(absDir, args[1])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown repos subcommand: %s\n", args[0])
-		fmt.Fprintf(os.Stderr, "Usage: task-plus repos [info|add|remove]\n")
+		fmt.Fprintf(os.Stderr, "Usage: task-plus repos [info|add|remove|archive]\n")
 		os.Exit(1)
 	}
+}
+
+// reposArchive marks the remote's repository archived (read-only) on its forge.
+func reposArchive(dir, name string) {
+	url, err := git.RemoteURL(dir, name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: git remote %q does not exist.\n", name)
+		os.Exit(1)
+	}
+	cfg, err := config.Load(dir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		os.Exit(1)
+	}
+	spec := cfg.RemoteSpec(name)
+	forgeType := forge.DetectFromURL(url)
+	if spec.Forge != "" {
+		forgeType = forge.Type(spec.Forge)
+	}
+	f := forge.Forge{Type: forgeType, URL: url, TokenEnv: spec.TokenEnv}
+	if !prompt.Confirm(fmt.Sprintf("Archive %s on %s (repo becomes read-only)?", url, forgeType)) {
+		fmt.Println("Aborted.")
+		return
+	}
+	if err := f.Archive(dir); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Archived %s — clones and go install keep working; pushes, issues and PRs are disabled.\n", url)
 }
 
 func reposInfo(dir string) {
