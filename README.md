@@ -266,11 +266,14 @@ Configure `pages_deploy` in `task-plus.yml` to deploy documentation as part of t
 If `pages_build` commands are configured, they run before deployment.
 
 **Local config (`task-plus.local.yaml`):** values that shouldn't be published
-with the repo — currently `rsync_host:`, the default ssh target for rsync
-targets that don't set their own `host:` — live in a gitignored
-`task-plus.local.yaml` next to `task-plus.yml`. Keep the real file in a synced
-folder and symlink it into each project; `tp check` warns if it isn't
-gitignored.
+with the repo live in a gitignored `task-plus.local.yaml` next to
+`task-plus.yml`. Keep the real file in a synced folder and symlink it into
+each project; `tp check` warns if it isn't gitignored. Fields:
+
+- `rsync_host:` — default ssh target for rsync targets that don't set their own `host:`
+- `secrets_wrapper:` — command tp re-execs itself under when a command needs
+  API tokens (`release`, `repos archive`, `pages deploy`), e.g. a wrapper that
+  loads tokens from a password manager into the environment
 
 Example `task-plus.yml` for deploying to both GitHub Pages and statichost.eu:
 

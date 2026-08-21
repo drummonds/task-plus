@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -112,6 +113,41 @@ func Main() {
 		usage()
 		os.Exit(1)
 	}
+}
+
+// ensureSecrets re-execs the current command under the secrets_wrapper
+// configured in task-plus.local.yaml (e.g. "with-secrets"), so commands that
+// need forge/deploy API tokens get them without the user typing the wrapper.
+// No-op when no wrapper is configured or when already running under one.
+func ensureSecrets(dir string) {
+	if os.Getenv("TP_SECRETS_WRAPPED") != "" {
+		return
+	}
+	cfg, err := config.Load(dir)
+	if err != nil || cfg.SecretsWrapper == "" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "Re-running under secrets wrapper: %s\n", cfg.SecretsWrapper)
+	self, err := os.Executable()
+	if err != nil {
+		self = os.Args[0]
+	}
+	parts := strings.Fields(cfg.SecretsWrapper)
+	args := append(parts[1:], append([]string{self}, os.Args[1:]...)...)
+	cmd := exec.Command(parts[0], args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "TP_SECRETS_WRAPPED=1")
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "Error running %s: %v\n", cfg.SecretsWrapper, err)
+		os.Exit(1)
+	}
+	os.Exit(0)
 }
 
 // checkForUpdate silently checks the Go module proxy and prints a hint if a newer version exists.
@@ -268,6 +304,7 @@ func runRelease(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	ensureSecrets(absDir)
 
 	// Guard: refuse if Taskfile.yml has a release: task (avoid self-conflict)
 	if _, serr := os.Stat(filepath.Join(absDir, "Taskfile.yml")); serr == nil {
@@ -448,6 +485,7 @@ func runPagesDeploy(args []string) {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	ensureSecrets(absDir)
 
 	cfg, err := config.Load(absDir)
 	if err != nil {
@@ -829,6 +867,7 @@ func runRepos(args []string) {
 
 // reposArchive marks the remote's repository archived (read-only) on its forge.
 func reposArchive(dir, name string) {
+	ensureSecrets(dir)
 	url, err := git.RemoteURL(dir, name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: git remote %q does not exist.\n", name)

@@ -712,3 +712,17 @@ func TestLocalConfigMissingFile(t *testing.T) {
 		t.Errorf("Host = %q, want empty without local config", cfg.PagesDeploy[0].Host)
 	}
 }
+
+func TestLocalConfigSecretsWrapper(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, LocalConfigFile), []byte("secrets_wrapper: with-secrets\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SecretsWrapper != "with-secrets" {
+		t.Errorf("SecretsWrapper = %q, want with-secrets", cfg.SecretsWrapper)
+	}
+}
