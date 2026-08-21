@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.84] - 2026-08-21
+
 ## [0.1.83] - 2026-07-12
 
  - Updated git secrets
