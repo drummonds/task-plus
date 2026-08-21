@@ -4,18 +4,18 @@ Go CLI tool that standardizes common development workflows across repositories.
 
 <!-- auto:version -->Latest: v0.1.83<!-- /auto:version -->
 
-Try https://h3-task-plus.statichost.page/ for documentation.
+Try https://task-plus.docs.bytestone.uk/ for documentation.
 
 ## Install
 
 ```bash
-go install codeberg.org/hum3/task-plus/cmd/task-plus@latest
+go install git.bytestone.uk/hum3/task-plus/cmd/task-plus@latest
 ```
 
 A shorter alias `tp` is also available:
 
 ```bash
-go install codeberg.org/hum3/task-plus/cmd/tp@latest
+go install git.bytestone.uk/hum3/task-plus/cmd/tp@latest
 ```
 
 Both binaries are identical — `tp` is just shorter to type.
@@ -24,16 +24,16 @@ Both binaries are identical — `tp` is just shorter to type.
 
 | Command | Description |
 |---------|-------------|
-| [`check`](https://h3-task-plus.statichost.page/check.html) | Validate task-plus.yml and Taskfile.yml configuration |
-| [`release`](https://h3-task-plus.statichost.page/release-workflow.html) | Interactive release workflow |
+| [`check`](https://task-plus.docs.bytestone.uk/check.html) | Validate task-plus.yml and Taskfile.yml configuration |
+| [`release`](https://task-plus.docs.bytestone.uk/release-workflow.html) | Interactive release workflow |
 | `release:version-update` | Scaffold a Taskfile task to update version strings |
 | `repos` | Manage git remotes for release |
-| [`pages`](https://h3-task-plus.statichost.page/pages.html) | Serve, deploy, configure, and migrate documentation |
+| [`pages`](https://task-plus.docs.bytestone.uk/pages.html) | Serve, deploy, configure, and migrate documentation |
 | `md2html` | Convert markdown files to Bulma-styled HTML |
 | `md_update` | Update auto-marker sections in a markdown file (toc, pages, links) |
 | `readme` | Update auto-marker sections in README.md |
-| [`wt`](https://h3-task-plus.statichost.page/worktrees.html) | Manage git worktrees for isolated Claude tasks |
-| [`claude`](https://h3-task-plus.statichost.page/worktrees.html#the-claude-command) | Run claude with --dangerously-skip-permissions (requires worktree + sandbox) |
+| [`wt`](https://task-plus.docs.bytestone.uk/worktrees.html) | Manage git worktrees for isolated Claude tasks |
+| [`claude`](https://task-plus.docs.bytestone.uk/worktrees.html#the-claude-command) | Run claude with --dangerously-skip-permissions (requires worktree + sandbox) |
 | `self` | Manage task-plus itself |
 
 ### Global Flags
@@ -260,8 +260,16 @@ Configure `pages_deploy` in `task-plus.yml` to deploy documentation as part of t
 |------|-------------|--------------|
 | `github` | Pushes `docs/` to `gh-pages` branch via `git subtree push` | Git remote configured |
 | `statichost` | Uploads `docs/` to [statichost.eu](https://www.statichost.eu/) | `site` field required; uses `shcli` (auto-downloaded if missing) |
+| `rsync` | Rsyncs `docs/` to `/srv/sites/<site>/` on a self-hosted server over SSH | `site` field required; host from `host:` or `task-plus.local.yaml` |
 
 If `pages_build` commands are configured, they run before deployment.
+
+**Local config (`task-plus.local.yaml`):** values that shouldn't be published
+with the repo — currently `rsync_host:`, the default ssh target for rsync
+targets that don't set their own `host:` — live in a gitignored
+`task-plus.local.yaml` next to `task-plus.yml`. Keep the real file in a synced
+folder and symlink it into each project; `tp check` warns if it isn't
+gitignored.
 
 Example `task-plus.yml` for deploying to both GitHub Pages and statichost.eu:
 
@@ -278,7 +286,7 @@ pages_deploy:
 <!-- auto:links -->
 | | |
 |---|---|
-| Documentation | https://h3-task-plus.statichost.page/ |
-| Source (Codeberg) | https://codeberg.org/hum3/task-plus |
+| Documentation | https://task-plus.docs.bytestone.uk/ |
+| Source | https://git.bytestone.uk/hum3/task-plus |
 | Mirror (GitHub) | https://github.com/drummonds/task-plus |
 <!-- /auto:links -->

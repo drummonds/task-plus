@@ -12,8 +12,9 @@ import (
 	"sort"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/git"
-	"codeberg.org/hum3/task-plus/internal/readme"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/readme"
 )
 
 // Options configures which markers to process.
@@ -290,32 +291,13 @@ func gitRemoteURLs(dir string) map[string]string {
 }
 
 func readDocumentationURL(dir string) string {
-	site := readStatichostSite(dir)
-	if site != "" {
-		return "https://" + site + ".statichost.page/"
-	}
-	return ""
-}
-
-func readStatichostSite(dir string) string {
-	data, err := os.ReadFile(filepath.Join(dir, "task-plus.yml"))
+	cfg, err := config.Load(dir)
 	if err != nil {
 		return ""
 	}
-	lines := strings.Split(string(data), "\n")
-	inDeploy := false
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "pages_deploy:" {
-			inDeploy = true
-			continue
-		}
-		if inDeploy && len(line) > 0 && line[0] != ' ' && line[0] != '\t' && line[0] != '-' {
-			break
-		}
-		if inDeploy && strings.HasPrefix(trimmed, "site:") {
-			val := strings.TrimPrefix(trimmed, "site:")
-			return strings.TrimSpace(val)
+	for _, t := range cfg.PagesDeploy {
+		if (t.Type == "statichost" || t.Type == "rsync") && t.Site != "" {
+			return t.SiteURL()
 		}
 	}
 	return ""

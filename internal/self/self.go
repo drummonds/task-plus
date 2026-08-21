@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	moduleName = "codeberg.org/hum3/task-plus"
+	moduleName = "git.bytestone.uk/hum3/task-plus"
 	modulePath = moduleName + "/cmd/task-plus"
 )
 

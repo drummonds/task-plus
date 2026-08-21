@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/deploy"
+	"git.bytestone.uk/hum3/task-plus/internal/deploy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -94,6 +94,29 @@ func (c *Config) ShouldInstall() bool {
 
 const configFile = "task-plus.yml"
 
+// LocalConfigFile is a gitignored per-machine overlay next to task-plus.yml.
+// It holds values that shouldn't be published with the repo (deploy hosts);
+// the canonical copy is typically kept in a synced folder and symlinked in.
+const LocalConfigFile = "task-plus.local.yaml"
+
+// localConfig is the schema of task-plus.local.yaml.
+type localConfig struct {
+	RsyncHost string `yaml:"rsync_host"` // default ssh target for rsync deploy targets
+}
+
+// loadLocal reads task-plus.local.yaml from dir. A missing file is not an error.
+func loadLocal(dir string) (localConfig, error) {
+	var lc localConfig
+	data, err := os.ReadFile(filepath.Join(dir, LocalConfigFile))
+	if err != nil {
+		return lc, nil
+	}
+	if err := yaml.Unmarshal(data, &lc); err != nil {
+		return lc, fmt.Errorf("%s: %w", LocalConfigFile, err)
+	}
+	return lc, nil
+}
+
 // Init creates a default task-plus.yml in dir. Returns an error if the file already exists.
 func Init(dir string) error {
 	path := filepath.Join(dir, configFile)
@@ -101,7 +124,7 @@ func Init(dir string) error {
 		return fmt.Errorf("%s already exists", configFile)
 	}
 
-	content := `# task-plus configuration — see https://codeberg.org/hum3/task-plus
+	content := `# task-plus configuration — see https://git.bytestone.uk/hum3/task-plus
 # type: library           # or "binary" (auto-detected from .goreleaser.yaml)
 # check: [task check]     # commands to run during release checks
 # changelog_format: keepachangelog  # or "simple"
@@ -131,6 +154,17 @@ func Load(dir string) (*Config, error) {
 		}
 	}
 	c.RemotesExplicit = len(c.Remotes) > 0
+
+	lc, err := loadLocal(dir)
+	if err != nil {
+		return nil, err
+	}
+	for i := range c.PagesDeploy {
+		t := &c.PagesDeploy[i]
+		if t.Type == "rsync" && t.Host == "" {
+			t.Host = lc.RsyncHost
+		}
+	}
 
 	c.applyDefaults()
 	return c, nil

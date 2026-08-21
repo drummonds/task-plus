@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/cleanup"
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/forge"
-	"codeberg.org/hum3/task-plus/internal/git"
-	"codeberg.org/hum3/task-plus/internal/version"
+	"git.bytestone.uk/hum3/task-plus/internal/cleanup"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/version"
 )
 
 // Gather performs read-only state probing to populate the plan.

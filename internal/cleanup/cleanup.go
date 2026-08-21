@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"codeberg.org/hum3/task-plus/internal/version"
+	"git.bytestone.uk/hum3/task-plus/internal/version"
 )
 
 // Deletion describes a release to delete and the reason why.

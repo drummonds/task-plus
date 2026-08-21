@@ -9,16 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"codeberg.org/hum3/task-plus/internal/changelog"
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/deploy"
-	"codeberg.org/hum3/task-plus/internal/forge"
-	"codeberg.org/hum3/task-plus/internal/git"
-	"codeberg.org/hum3/task-plus/internal/prompt"
-	"codeberg.org/hum3/task-plus/internal/readme"
-	"codeberg.org/hum3/task-plus/internal/release"
-	"codeberg.org/hum3/task-plus/internal/self"
-	"codeberg.org/hum3/task-plus/internal/version"
+	"git.bytestone.uk/hum3/task-plus/internal/changelog"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/deploy"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/prompt"
+	"git.bytestone.uk/hum3/task-plus/internal/readme"
+	"git.bytestone.uk/hum3/task-plus/internal/release"
+	"git.bytestone.uk/hum3/task-plus/internal/self"
+	"git.bytestone.uk/hum3/task-plus/internal/version"
 )
 
 // rollback tracks state for undoing local mutations on failure.
@@ -399,7 +399,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 				if lastErr != nil {
 					return fmt.Errorf("go install failed after %d attempts: %w", retries, lastErr)
 				}
-				if modPath == "codeberg.org/hum3/task-plus" {
+				if modPath == "git.bytestone.uk/hum3/task-plus" {
 					if err := self.SymlinkTP(); err != nil {
 						fmt.Printf("  Warning: could not create tp symlink: %v\n", err)
 					}
@@ -482,7 +482,7 @@ func executeSteps(ctx *Context, rb *rollback) error {
 				if err := rcDep.Deploy(deployDir, docsDir, ctx.DryRun); err != nil {
 					return err
 				}
-				rcURL := "https://" + target.RCSite + ".statichost.page/"
+				rcURL := rcTarget.SiteURL()
 				fmt.Printf("  RC deployed: %s\n", rcURL)
 
 				if prompt.Confirm("RC deployed. Promote to main site?") {

@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/forge"
-	"codeberg.org/hum3/task-plus/internal/prompt"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/prompt"
 )
 
 func setupGitRepo(t *testing.T, remotes map[string]string) string {

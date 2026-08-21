@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/deploy"
-	"codeberg.org/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/deploy"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
 )
 
 // Update reads README.md in dir, replaces auto-marker sections, and writes back.
@@ -192,20 +192,23 @@ func docsLinks(cfg *config.Config) []docLink {
 		if i > 0 {
 			label = siteLabel(t.Site)
 		}
-		links = append(links, docLink{label, "https://" + t.Site + ".statichost.page/"})
+		links = append(links, docLink{label, t.SiteURL()})
 		if t.HasRCSite() {
 			rcLabel := "RC " + label
-			links = append(links, docLink{rcLabel, "https://" + t.RCSite + ".statichost.page/"})
+			rcTarget := t
+			rcTarget.Site = t.RCSite
+			links = append(links, docLink{rcLabel, rcTarget.SiteURL()})
 		}
 	}
 	return links
 }
 
-// statichostTargets returns all statichost deploy targets with a site configured.
+// statichostTargets returns all site-serving deploy targets (statichost or
+// rsync) with a site configured.
 func statichostTargets(cfg *config.Config) []deploy.Target {
 	var out []deploy.Target
 	for _, t := range cfg.PagesDeploy {
-		if t.Type == "statichost" && t.Site != "" {
+		if (t.Type == "statichost" || t.Type == "rsync") && t.Site != "" {
 			out = append(out, t)
 		}
 	}

@@ -675,3 +675,40 @@ func TestRemotesNotExplicitWhenAbsent(t *testing.T) {
 		t.Errorf("RemoteNames = %v, want [origin] default", got)
 	}
 }
+
+func TestLocalConfigRsyncHost(t *testing.T) {
+	dir := t.TempDir()
+	writeFile := func(name, content string) {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile("task-plus.yml", "pages_deploy:\n  - type: rsync\n    site: mysite\n  - type: rsync\n    site: other\n    host: me@already.set\n")
+	writeFile(LocalConfigFile, "# local overlay\nrsync_host: deploy@docs.example.com\n")
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.PagesDeploy[0].Host; got != "deploy@docs.example.com" {
+		t.Errorf("Host = %q, want deploy@docs.example.com", got)
+	}
+	// An explicit host on the target wins over the local default
+	if got := cfg.PagesDeploy[1].Host; got != "me@already.set" {
+		t.Errorf("Host = %q, want me@already.set", got)
+	}
+}
+
+func TestLocalConfigMissingFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "task-plus.yml"), []byte("pages_deploy:\n  - type: rsync\n    site: mysite\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PagesDeploy[0].Host != "" {
+		t.Errorf("Host = %q, want empty without local config", cfg.PagesDeploy[0].Host)
+	}
+}

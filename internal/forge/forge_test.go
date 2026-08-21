@@ -61,8 +61,8 @@ func TestExtractOwnerRepo(t *testing.T) {
 	}{
 		{"https://github.com/user/repo.git", "github.com", "user", "repo"},
 		{"git@github.com:user/repo.git", "github.com", "user", "repo"},
-		{"ssh://git@codeberg.org/hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
-		{"https://codeberg.org/hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
+		{"ssh://git@git.bytestone.uk/hum3/task-plus.git", "git.bytestone.uk", "hum3", "task-plus"},
+		{"https://git.bytestone.uk/hum3/task-plus.git", "git.bytestone.uk", "hum3", "task-plus"},
 		{"git@codeberg.org:hum3/task-plus.git", "codeberg.org", "hum3", "task-plus"},
 		{"https://gitlab.com/group/project", "gitlab.com", "group", "project"},
 	}

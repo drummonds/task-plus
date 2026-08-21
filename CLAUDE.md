@@ -10,7 +10,7 @@ Go CLI tool (`tp` / `task-plus`) that standardises dev workflows across repos. S
 - `internal/config/` — `task-plus.yml` loader
 - `internal/changelog/` — keepachangelog parser/updater
 - `internal/version/` — semver parsing and comparison
-- `internal/deploy/` — pluggable doc deployment (GitHub Pages, statichost.eu)
+- `internal/deploy/` — pluggable doc deployment (GitHub Pages, statichost.eu, rsync)
 - `internal/md2html/` — markdown → Bulma-styled HTML converter
 - `internal/worktree/` — git worktree management for isolated Claude tasks
 - `internal/forge/` — forge detection and API (GitHub, Codeberg/Forgejo)
@@ -36,5 +36,5 @@ Project config lives in `task-plus.yml` at the project root. The tool is also it
 
 - Version set by goreleaser ldflags; falls back to `debug.ReadBuildInfo()` for `go install`
 - Release workflow guards against Taskfile.yml containing a conflicting `release:` task
-- Dual-remote setup: origin (Codeberg) + github (GitHub mirror)
-- Docs built with `tp md2html`, deployed to statichost.eu
+- Dual-remote setup: origin (Forgejo at git.bytestone.uk) + github (GitHub mirror)
+- Docs built with `tp md2html`, deployed via rsync to the static docs server

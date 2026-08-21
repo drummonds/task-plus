@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 )
 
 // Statichost deploys documentation to statichost.eu using their shcli tool.
@@ -65,7 +66,8 @@ func (s *Statichost) checkSiteExists() error {
 		return fmt.Errorf("checking site: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("checking site: %w", err)
 	}

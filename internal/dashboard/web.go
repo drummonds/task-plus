@@ -6,7 +6,7 @@ import (
 	"net"
 	"net/http"
 
-	"codeberg.org/hum3/task-plus/internal/agent"
+	"git.bytestone.uk/hum3/task-plus/internal/agent"
 	"github.com/drummonds/lofigui"
 )
 

@@ -107,7 +107,7 @@ func TestParseGitURL(t *testing.T) {
 		{"git@github.com:user/repo.git", "github.com/user/repo"},
 		{"git@gitlab.com:org/project.git", "gitlab.com/org/project"},
 		{"git@github.com:user/repo", "github.com/user/repo"},
-		{"https://codeberg.org/hum3/task-plus.git", "codeberg.org/hum3/task-plus"},
+		{"https://git.bytestone.uk/hum3/task-plus.git", "git.bytestone.uk/hum3/task-plus"},
 		{"https://github.com/user/repo", "github.com/user/repo"},
 		{"http://github.com/user/repo.git", "github.com/user/repo"},
 		{"", ""},

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/prompt"
-	"codeberg.org/hum3/task-plus/internal/releasecomment"
-	"codeberg.org/hum3/task-plus/internal/version"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/prompt"
+	"git.bytestone.uk/hum3/task-plus/internal/releasecomment"
+	"git.bytestone.uk/hum3/task-plus/internal/version"
 )
 
 // Ask presents all user prompts using gathered state, populating user decisions in the plan.

@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/deploy"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/deploy"
 )
 
 // validateDeploy pre-checks documentation deployment before any irreversible

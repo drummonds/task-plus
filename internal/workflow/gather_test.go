@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
 )
 
 func TestCheckArrangement(t *testing.T) {

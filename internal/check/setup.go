@@ -6,11 +6,11 @@ import (
 	"slices"
 	"strings"
 
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/forge"
-	"codeberg.org/hum3/task-plus/internal/git"
-	"codeberg.org/hum3/task-plus/internal/prompt"
-	"codeberg.org/hum3/task-plus/internal/release"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/prompt"
+	"git.bytestone.uk/hum3/task-plus/internal/release"
 	"gopkg.in/yaml.v3"
 )
 

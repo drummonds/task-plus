@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
+
+// httpClient bounds every forge API call so an unreachable host (e.g. a NAS
+// forge while away from home) fails fast instead of hanging the workflow.
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 // forgejoRelease is the subset of the Forgejo/Gitea release API response we need.
 type forgejoRelease struct {
@@ -28,7 +33,7 @@ func listReleasesForgejo(remoteURL, token string) ([]string, error) {
 		req.Header.Set("Authorization", "token "+token)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("forgejo API: %w", err)
 	}
@@ -65,7 +70,7 @@ func deleteReleaseForgejo(remoteURL, tag, token string) error {
 	}
 	req.Header.Set("Authorization", "token "+token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("forgejo API: %w", err)
 	}
@@ -89,7 +94,7 @@ func deleteReleaseForgejo(remoteURL, tag, token string) error {
 	}
 	delReq.Header.Set("Authorization", "token "+token)
 
-	delResp, err := http.DefaultClient.Do(delReq)
+	delResp, err := httpClient.Do(delReq)
 	if err != nil {
 		return fmt.Errorf("forgejo API delete release: %w", err)
 	}
@@ -106,7 +111,7 @@ func deleteReleaseForgejo(remoteURL, tag, token string) error {
 	}
 	tagReq.Header.Set("Authorization", "token "+token)
 
-	tagResp, err := http.DefaultClient.Do(tagReq)
+	tagResp, err := httpClient.Do(tagReq)
 	if err != nil {
 		return fmt.Errorf("forgejo API delete tag: %w", err)
 	}

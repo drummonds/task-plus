@@ -8,15 +8,16 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"codeberg.org/hum3/task-plus/internal/changelog"
-	"codeberg.org/hum3/task-plus/internal/config"
-	"codeberg.org/hum3/task-plus/internal/favicon"
-	"codeberg.org/hum3/task-plus/internal/forge"
-	"codeberg.org/hum3/task-plus/internal/git"
-	"codeberg.org/hum3/task-plus/internal/release"
-	"codeberg.org/hum3/task-plus/internal/version"
+	"git.bytestone.uk/hum3/task-plus/internal/changelog"
+	"git.bytestone.uk/hum3/task-plus/internal/config"
+	"git.bytestone.uk/hum3/task-plus/internal/favicon"
+	"git.bytestone.uk/hum3/task-plus/internal/forge"
+	"git.bytestone.uk/hum3/task-plus/internal/git"
+	"git.bytestone.uk/hum3/task-plus/internal/release"
+	"git.bytestone.uk/hum3/task-plus/internal/version"
 	"gopkg.in/yaml.v3"
 )
 
@@ -170,11 +171,15 @@ func Run(dir string, verbose bool) error {
 
 	// Phase 2: Remote checks (network required, may be slow)
 	fmt.Println("\nChecking external resources...")
-	remoteSections := []section{
-		checkVersionSection(dir),
-		{"Go proxy", checkGoProxy(dir)},
-		{"Statichost", checkStatichost(dir)},
-	}
+	// Run concurrently so unreachable hosts cost one timeout, not a stack of
+	// them (e.g. checking from outside the network that hosts the forge).
+	remoteSections := make([]section, 3)
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() { defer wg.Done(); remoteSections[0] = checkVersionSection(dir) }()
+	go func() { defer wg.Done(); remoteSections[1] = section{"Go proxy", checkGoProxy(dir)} }()
+	go func() { defer wg.Done(); remoteSections[2] = section{"Statichost", checkStatichost(dir)} }()
+	wg.Wait()
 
 	for _, s := range remoteSections {
 		if verbose {
@@ -339,22 +344,56 @@ func checkConfig(dir string) []finding {
 	// Validate deploy targets
 	for i, t := range cfg.PagesDeploy {
 		switch t.Type {
-		case "github", "statichost":
+		case "github", "statichost", "rsync":
 			// valid
 		default:
-			findings = append(findings, finding{levelError, fmt.Sprintf("pages_deploy[%d]: invalid type %q (expected: github, statichost)", i, t.Type)})
+			findings = append(findings, finding{levelError, fmt.Sprintf("pages_deploy[%d]: invalid type %q (expected: github, statichost, rsync)", i, t.Type)})
 			continue
 		}
-		if t.Type == "statichost" {
+		if t.Type == "statichost" || t.Type == "rsync" {
 			switch t.Site {
 			case "":
-				findings = append(findings, finding{levelError, fmt.Sprintf("pages_deploy[%d]: statichost requires 'site' field", i)})
+				findings = append(findings, finding{levelError, fmt.Sprintf("pages_deploy[%d]: %s requires 'site' field", i, t.Type)})
 			case "CHANGEME":
 				findings = append(findings, finding{levelWarn, fmt.Sprintf("pages_deploy[%d]: site is still 'CHANGEME'", i)})
 			}
 		}
+		if t.Type == "rsync" && t.Host == "" {
+			findings = append(findings, finding{levelError, fmt.Sprintf("pages_deploy[%d]: rsync has no host — set 'host:' on the target or 'rsync_host:' in %s", i, config.LocalConfigFile)})
+		}
 	}
 
+	findings = append(findings, checkLocalConfigIgnored(dir)...)
+
+	return findings
+}
+
+// checkLocalConfigIgnored validates the task-plus.local.yaml installation:
+// it must be gitignored (it exists precisely to keep values out of the repo),
+// and it should be a symlink into a replicated folder so every machine and
+// checkout shares one copy — a plain file gets a suggestion to convert.
+func checkLocalConfigIgnored(dir string) []finding {
+	path := filepath.Join(dir, config.LocalConfigFile)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil
+	}
+	var findings []finding
+	if _, err := git.Run(dir, "check-ignore", "-q", config.LocalConfigFile); err != nil {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("%s is not gitignored — add it to .gitignore so it is never committed", config.LocalConfigFile)})
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(path)
+		if err == nil {
+			if _, err := os.Stat(path); err != nil {
+				findings = append(findings, finding{levelError, fmt.Sprintf("%s is a broken symlink (→ %s)", config.LocalConfigFile, target)})
+			} else {
+				findings = append(findings, finding{levelOK, fmt.Sprintf("%s → %s", config.LocalConfigFile, target)})
+			}
+		}
+	} else {
+		findings = append(findings, finding{levelWarn, fmt.Sprintf("%s is a plain file — symlink it to a copy in a replicated folder (e.g. ~/Cloudstation) so all machines and checkouts share one config", config.LocalConfigFile)})
+	}
 	return findings
 }
 
@@ -513,7 +552,7 @@ func readGoModulePath(path string) (string, error) {
 // remoteURLToModulePath normalises a git remote URL to a Go module path.
 // Examples:
 //
-//	ssh://git@codeberg.org/hum3/task-plus.git → codeberg.org/hum3/task-plus
+//	ssh://git@git.bytestone.uk/hum3/task-plus.git → git.bytestone.uk/hum3/task-plus
 //	git@github.com:drummonds/task-plus.git    → github.com/drummonds/task-plus
 //	https://github.com/drummonds/task-plus    → github.com/drummonds/task-plus
 func remoteURLToModulePath(url string) string {
@@ -907,16 +946,24 @@ func checkStatichost(dir string) []finding {
 		return findings
 	}
 
-	var sites []string
+	type siteURL struct {
+		site string
+		url  string
+	}
+	var sites []siteURL
 	for _, t := range cfg.PagesDeploy {
-		if t.Type != "statichost" {
+		if t.Type != "statichost" && t.Type != "rsync" {
 			continue
 		}
-		if t.Site != "" {
-			sites = append(sites, t.Site)
+		if t.Site != "" && t.SiteURL() != "" {
+			sites = append(sites, siteURL{t.Site, t.SiteURL()})
 		}
 		if t.HasRCSite() {
-			sites = append(sites, t.RCSite)
+			rcTarget := t
+			rcTarget.Site = t.RCSite
+			if rcTarget.SiteURL() != "" {
+				sites = append(sites, siteURL{t.RCSite, rcTarget.SiteURL()})
+			}
 		}
 	}
 
@@ -925,8 +972,8 @@ func checkStatichost(dir string) []finding {
 		return findings
 	}
 
-	for _, site := range sites {
-		url := "https://" + site + ".statichost.page/"
+	for _, s := range sites {
+		site, url := s.site, s.url
 		resp, err := statichostHTTPClient.Head(url)
 		if err != nil {
 			findings = append(findings, finding{levelWarn, fmt.Sprintf("%s unreachable: %v", site, err)})
@@ -1098,19 +1145,35 @@ func checkVersionSection(dir string) section {
 	// 4. Remote tags
 	if cfg != nil && hasTag {
 		tagName := latest.String() // "vX.Y.Z"
+		var remotes []string
 		for _, remote := range cfg.RemoteNames() {
-			if !git.HasRemote(dir, remote) {
-				continue
+			if git.HasRemote(dir, remote) {
+				remotes = append(remotes, remote)
 			}
-			exists, err := git.RemoteTagExists(dir, remote, tagName)
-			if err != nil {
-				findings = append(findings, finding{levelWarn, fmt.Sprintf("%s: cannot check remote tags: %v", remote, err)})
+		}
+		type tagResult struct {
+			exists bool
+			err    error
+		}
+		results := make([]tagResult, len(remotes))
+		var wg sync.WaitGroup
+		for i, remote := range remotes {
+			wg.Add(1)
+			go func(i int, remote string) {
+				defer wg.Done()
+				exists, err := git.RemoteTagExists(dir, remote, tagName)
+				results[i] = tagResult{exists, err}
+			}(i, remote)
+		}
+		wg.Wait()
+		for i, remote := range remotes {
+			switch {
+			case results[i].err != nil:
+				findings = append(findings, finding{levelWarn, fmt.Sprintf("%s: cannot check remote tags: %v", remote, results[i].err)})
 				allMatch = false
-				continue
-			}
-			if exists {
+			case results[i].exists:
 				findings = append(findings, finding{levelOK, fmt.Sprintf("%s: %s", remote, tagName)})
-			} else {
+			default:
 				findings = append(findings, finding{levelWarn, fmt.Sprintf("%s: missing %s", remote, tagName)})
 				allMatch = false
 			}
@@ -1228,6 +1291,12 @@ func printDeploy(dir string) {
 			fmt.Printf("  %-16s site: %s (statichost.eu%s)\n", t.Type, t.Site, dirLabel)
 		case "github":
 			fmt.Printf("  %-16s GitHub Pages (gh-pages branch%s)\n", t.Type, dirLabel)
+		case "rsync":
+			host := t.Host
+			if host == "" {
+				host = "no host — set rsync_host in " + config.LocalConfigFile
+			}
+			fmt.Printf("  %-16s site: %s (%s%s)\n", t.Type, t.Site, host, dirLabel)
 		default:
 			fmt.Printf("  %-16s %s\n", t.Type, t.Site)
 		}

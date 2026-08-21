@@ -342,10 +342,10 @@ func TestRemoteURLToModulePath(t *testing.T) {
 		url  string
 		want string
 	}{
-		{"ssh://git@codeberg.org/hum3/task-plus.git", "codeberg.org/hum3/task-plus"},
+		{"ssh://git@git.bytestone.uk/hum3/task-plus.git", "git.bytestone.uk/hum3/task-plus"},
 		{"git@github.com:drummonds/task-plus.git", "github.com/drummonds/task-plus"},
 		{"https://github.com/drummonds/task-plus.git", "github.com/drummonds/task-plus"},
-		{"https://codeberg.org/hum3/task-plus", "codeberg.org/hum3/task-plus"},
+		{"https://git.bytestone.uk/hum3/task-plus", "git.bytestone.uk/hum3/task-plus"},
 		{"ssh://git@codeberg.org/hum3/go-luca.git", "codeberg.org/hum3/go-luca"},
 		{"git@codeberg.org:hum3/go-luca.git", "codeberg.org/hum3/go-luca"},
 	}
@@ -362,13 +362,13 @@ func TestReadGoModulePath(t *testing.T) {
 	path := filepath.Join(dir, "go.mod")
 
 	// Valid go.mod
-	_ = os.WriteFile(path, []byte("module codeberg.org/hum3/task-plus\n\ngo 1.25.3\n"), 0644)
+	_ = os.WriteFile(path, []byte("module git.bytestone.uk/hum3/task-plus\n\ngo 1.25.3\n"), 0644)
 	got, err := readGoModulePath(path)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got != "codeberg.org/hum3/task-plus" {
-		t.Errorf("got %q, want %q", got, "codeberg.org/hum3/task-plus")
+	if got != "git.bytestone.uk/hum3/task-plus" {
+		t.Errorf("got %q, want %q", got, "git.bytestone.uk/hum3/task-plus")
 	}
 
 	// No module directive

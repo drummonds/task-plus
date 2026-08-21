@@ -1,15 +1,24 @@
 package git
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // Run executes a git command in the given directory and returns stdout.
+// A connect timeout is set for SSH so network commands (ls-remote, push)
+// fail fast when a remote's host is unreachable (e.g. a NAS forge while
+// away from home) instead of hanging on the TCP connect.
 func Run(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		cmd.Env = append(os.Environ(), "GIT_SSH_COMMAND=ssh -o ConnectTimeout=10")
+	}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, out)
@@ -91,12 +100,29 @@ func PushTo(dir, remote string) error {
 }
 
 // RemoteTagExists checks whether a tag exists on a specific remote.
+// The query is deadline-bounded: over HTTPS git waits minutes for an
+// unreachable host, which would hang checks run away from the remote's
+// network. An unreachable remote is an error, not a hang.
 func RemoteTagExists(dir, remote, tag string) (bool, error) {
-	out, err := Run(dir, "ls-remote", "--tags", remote, tag)
-	if err != nil {
-		return false, err
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", "ls-remote", "--tags", remote, tag)
+	// Without WaitDelay, a killed git leaves its transport helper
+	// (git-remote-https) holding the output pipe, blocking Wait until the
+	// helper's own multi-minute TCP timeout expires.
+	cmd.WaitDelay = 3 * time.Second
+	cmd.Dir = dir
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		cmd.Env = append(os.Environ(), "GIT_SSH_COMMAND=ssh -o ConnectTimeout=10")
 	}
-	return strings.TrimSpace(out) != "", nil
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return false, fmt.Errorf("git ls-remote %s: timed out (remote unreachable?)", remote)
+	}
+	if err != nil {
+		return false, fmt.Errorf("git ls-remote %s: %w\n%s", remote, err, out)
+	}
+	return strings.TrimSpace(string(out)) != "", nil
 }
 
 // RemoteURL returns the URL for the named git remote.

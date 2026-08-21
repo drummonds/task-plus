@@ -1,4 +1,4 @@
-module codeberg.org/hum3/task-plus
+module git.bytestone.uk/hum3/task-plus
 
 go 1.25.3
 
