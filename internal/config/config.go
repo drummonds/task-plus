@@ -79,6 +79,7 @@ type Config struct {
 	PagesDeploy      []deploy.Target `yaml:"pages_deploy"`
 	RetractReviewed  string          `yaml:"retract_reviewed"`
 	SecretsWrapper   string          `yaml:"-"` // from task-plus.local.yaml
+	SecretsProvider  string          `yaml:"-"` // from task-plus.local.yaml
 	Ports            []int           `yaml:"ports"`
 	DocsRepo         string          `yaml:"docs_repo"`
 	ParentRepo       string          `yaml:"parent_repo"`
@@ -102,8 +103,9 @@ const LocalConfigFile = "task-plus.local.yaml"
 
 // localConfig is the schema of task-plus.local.yaml.
 type localConfig struct {
-	RsyncHost      string `yaml:"rsync_host"`      // default ssh target for rsync deploy targets
-	SecretsWrapper string `yaml:"secrets_wrapper"` // command tp re-execs itself under when a command needs API tokens (e.g. "with-secrets")
+	RsyncHost       string `yaml:"rsync_host"`       // default ssh target for rsync deploy targets
+	SecretsWrapper  string `yaml:"secrets_wrapper"`  // command tp re-execs itself under when a command needs API tokens (e.g. "with-secrets")
+	SecretsProvider string `yaml:"secrets_provider"` // built-in token source: "bitwarden" (tp unlock + bw CLI); takes precedence over secrets_wrapper
 }
 
 // loadLocal reads task-plus.local.yaml from dir. A missing file is not an error.
@@ -162,6 +164,7 @@ func Load(dir string) (*Config, error) {
 		return nil, err
 	}
 	c.SecretsWrapper = lc.SecretsWrapper
+	c.SecretsProvider = lc.SecretsProvider
 	for i := range c.PagesDeploy {
 		t := &c.PagesDeploy[i]
 		if t.Type == "rsync" && t.Host == "" {

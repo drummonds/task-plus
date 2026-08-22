@@ -726,3 +726,17 @@ func TestLocalConfigSecretsWrapper(t *testing.T) {
 		t.Errorf("SecretsWrapper = %q, want with-secrets", cfg.SecretsWrapper)
 	}
 }
+
+func TestLocalConfigSecretsProvider(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, LocalConfigFile), []byte("secrets_provider: bitwarden\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SecretsProvider != "bitwarden" {
+		t.Errorf("SecretsProvider = %q, want bitwarden", cfg.SecretsProvider)
+	}
+}

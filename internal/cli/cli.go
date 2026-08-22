@@ -25,6 +25,7 @@ import (
 	"git.bytestone.uk/hum3/task-plus/internal/ports"
 	"git.bytestone.uk/hum3/task-plus/internal/prompt"
 	"git.bytestone.uk/hum3/task-plus/internal/readme"
+	"git.bytestone.uk/hum3/task-plus/internal/secrets"
 	"git.bytestone.uk/hum3/task-plus/internal/self"
 	"git.bytestone.uk/hum3/task-plus/internal/version"
 	"git.bytestone.uk/hum3/task-plus/internal/workflow"
@@ -62,6 +63,33 @@ var commands = []struct {
 	{"wt", "Manage git worktrees (start, agent, review, merge, clean, list, dashboard)"},
 	{"claude", "Run claude --dangerously-skip-permissions (requires worktree + sandbox)"},
 	{"self", "Manage task-plus itself (update, etc.)"},
+	{"unlock", "Unlock the Bitwarden vault and cache the session for 24h"},
+	{"secrets", "Run a command with vault tokens in its environment (tp secrets CMD...)"},
+}
+
+// runSecrets executes an arbitrary command with all mapped vault tokens set
+// in its environment — the tp-native replacement for a with-secrets script.
+func runSecrets(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage: task-plus secrets CMD [ARGS...]\n")
+		os.Exit(2)
+	}
+	if err := secrets.Load(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "Error running %s: %v\n", args[0], err)
+		os.Exit(1)
+	}
 }
 
 // Main is the entry point for both task-plus and tp binaries.
@@ -108,6 +136,13 @@ func Main() {
 		runClaude(os.Args[2:])
 	case "self":
 		runSelf(os.Args[2:])
+	case "unlock":
+		if err := secrets.Unlock(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "secrets":
+		runSecrets(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		usage()
@@ -115,16 +150,31 @@ func Main() {
 	}
 }
 
-// ensureSecrets re-execs the current command under the secrets_wrapper
-// configured in task-plus.local.yaml (e.g. "with-secrets"), so commands that
-// need forge/deploy API tokens get them without the user typing the wrapper.
-// No-op when no wrapper is configured or when already running under one.
+// ensureSecrets provides API tokens to commands that need them. With
+// secrets_provider configured in task-plus.local.yaml the tokens are fetched
+// in-process (e.g. "bitwarden": bw CLI + the session cached by tp unlock);
+// otherwise, with secrets_wrapper configured, tp re-execs itself under the
+// wrapper command. No-op when neither is configured.
 func ensureSecrets(dir string) {
 	if os.Getenv("TP_SECRETS_WRAPPED") != "" {
 		return
 	}
 	cfg, err := config.Load(dir)
-	if err != nil || cfg.SecretsWrapper == "" {
+	if err != nil {
+		return
+	}
+	if cfg.SecretsProvider != "" {
+		if cfg.SecretsProvider != "bitwarden" {
+			fmt.Fprintf(os.Stderr, "Error: unknown secrets_provider %q (supported: bitwarden)\n", cfg.SecretsProvider)
+			os.Exit(1)
+		}
+		if err := secrets.Load(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if cfg.SecretsWrapper == "" {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "Re-running under secrets wrapper: %s\n", cfg.SecretsWrapper)

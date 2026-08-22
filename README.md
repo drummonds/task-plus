@@ -271,9 +271,15 @@ with the repo live in a gitignored `task-plus.local.yaml` next to
 each project; `tp check` warns if it isn't gitignored. Fields:
 
 - `rsync_host:` — default ssh target for rsync targets that don't set their own `host:`
-- `secrets_wrapper:` — command tp re-execs itself under when a command needs
-  API tokens (`release`, `repos archive`, `pages deploy`), e.g. a wrapper that
-  loads tokens from a password manager into the environment
+- `secrets_provider:` — built-in token source for commands that need API
+  tokens (`release`, `repos archive`, `pages deploy`). With `bitwarden`, tp
+  fetches tokens via the `bw` CLI using the session cached by `tp unlock`
+  (24h TTL, 0600 file) and the `ENV_VAR<TAB>item-id[<TAB>field]` mapping in
+  `~/.config/bw-session/items.conf`. `tp secrets CMD...` runs any other
+  command with the same tokens in its environment.
+- `secrets_wrapper:` — alternative to `secrets_provider`: an external command
+  tp re-execs itself under (e.g. a script that loads tokens into the
+  environment). `secrets_provider` takes precedence.
 
 Example `task-plus.yml` for deploying to both GitHub Pages and statichost.eu:
 

@@ -17,6 +17,7 @@ import (
 	"git.bytestone.uk/hum3/task-plus/internal/forge"
 	"git.bytestone.uk/hum3/task-plus/internal/git"
 	"git.bytestone.uk/hum3/task-plus/internal/release"
+	"git.bytestone.uk/hum3/task-plus/internal/secrets"
 	"git.bytestone.uk/hum3/task-plus/internal/version"
 	"gopkg.in/yaml.v3"
 )
@@ -393,6 +394,14 @@ func checkLocalConfigIgnored(dir string) []finding {
 		}
 	} else {
 		findings = append(findings, finding{levelWarn, fmt.Sprintf("%s is a plain file — symlink it to a copy in a replicated folder (e.g. ~/Cloudstation) so all machines and checkouts share one config", config.LocalConfigFile)})
+	}
+	if cfg, err := config.Load(dir); err == nil && cfg.SecretsProvider == "bitwarden" {
+		state := secrets.SessionState()
+		level := levelOK
+		if !strings.HasPrefix(state, "ok") {
+			level = levelWarn
+		}
+		findings = append(findings, finding{level, "Secrets (bitwarden): session " + state})
 	}
 	return findings
 }
