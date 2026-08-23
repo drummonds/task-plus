@@ -76,7 +76,7 @@ func Session() (string, error) {
 	if time.Since(info.ModTime()) > sessionTTL {
 		_ = os.Remove(path)
 		_ = exec.Command("bw", "lock").Run()
-		return "", fmt.Errorf("Bitwarden session expired (>24h) — run: tp unlock")
+		return "", fmt.Errorf("bitwarden session expired (>24h) — run: tp unlock")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
